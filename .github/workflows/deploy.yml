@@ -1,0 +1,72 @@
+name: Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: The workspace to deploy to
+        required: true
+        default: dev
+      branch:
+        description: The branch to deploy
+        required: true
+        default: main
+      csrf_enabled:
+        description: Enable browser CSRF enforcement for the API
+        required: true
+        default: 'true'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
+
+jobs:
+
+  shared_infra:
+    uses: ./.github/workflows/shared-infra.yml
+    with:
+      workspace: ${{ inputs.environment }}
+      run_deploy: ${{ github.event_name == 'push' }}
+    secrets: inherit
+
+  services:
+    # needs: [detect-changes, shared_infra]
+    needs: [shared_infra]
+    uses: ./.github/workflows/services.yml
+    with:
+      workspace: ${{ inputs.environment }}
+      run_deploy: ${{ github.event_name == 'push' }}
+      csrf_enabled: ${{ inputs.csrf_enabled || 'true' }}
+    secrets: inherit
+
+  frontend:
+    needs: [shared_infra]
+    uses: ./.github/workflows/frontend.yml
+    with:
+      workspace: ${{ inputs.environment }}
+      run_deploy: ${{ github.event_name == 'push' }}
+    secrets: inherit
+
+  order_processor:
+    needs: [shared_infra]
+    uses: ./.github/workflows/order-processor.yml
+    with:
+      workspace: ${{ inputs.environment }}
+      run_deploy: ${{ github.event_name == 'push' }}
+    secrets: inherit
+
+  payment_processor:
+    needs: [shared_infra]
+    uses: ./.github/workflows/payment-processor.yml
+    with:
+      workspace: ${{ inputs.environment }}
+      run_deploy: ${{ github.event_name == 'push' }}
+    secrets: inherit
+
+  notification_sender:
+    needs: [shared_infra]
+    uses: ./.github/workflows/notification-sender.yml
+    with:
+      workspace: ${{ inputs.environment }}
+      run_deploy: ${{ github.event_name == 'push' }}
+    secrets: inherit

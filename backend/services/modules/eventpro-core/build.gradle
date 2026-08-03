@@ -1,0 +1,40 @@
+plugins {
+    id 'java'
+}
+
+dependencies {
+    // Spring Boot
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    implementation 'org.springframework.boot:spring-boot-starter-security'
+    implementation 'org.springframework.security:spring-security-crypto'
+    implementation 'org.springframework.boot:spring-boot-starter-validation'
+    
+    // JWT (jjwt 0.12.6)
+    implementation "io.jsonwebtoken:jjwt-api:${project.ext.jjwtVersion}"
+    runtimeOnly "io.jsonwebtoken:jjwt-impl:${project.ext.jjwtVersion}"
+    runtimeOnly "io.jsonwebtoken:jjwt-jackson:${project.ext.jjwtVersion}"
+    
+    // AWS SDK
+    implementation platform("software.amazon.awssdk:bom:${project.ext.awsSdkVersion}")
+    implementation 'software.amazon.awssdk:secretsmanager'
+    implementation 'software.amazon.awssdk:sqs'
+    implementation 'software.amazon.awssdk:ses'
+    
+    // Jackson for JSON
+    implementation 'com.fasterxml.jackson.core:jackson-databind'
+    implementation 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310'
+    
+    // Database
+    runtimeOnly "org.postgresql:postgresql:${project.ext.postgresqlVersion}"
+    
+    // Lombok
+    compileOnly "org.projectlombok:lombok:${project.ext.lombokVersion}"
+    annotationProcessor "org.projectlombok:lombok:${project.ext.lombokVersion}"
+    
+    // Testing
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'org.springframework.security:spring-security-test'
+    testImplementation 'com.h2database:h2' // For @DataJpaTest
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher' // Required for JUnit 5 test execution
+}

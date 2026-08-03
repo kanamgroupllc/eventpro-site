@@ -1,0 +1,25 @@
+# Go-live checklist §1 (supply chain) and §11 — dependency / filesystem CVE scan.
+# Tune severity and exit-code when you are ready to block merges on findings.
+name: Security scan
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  trivy-fs:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Trivy filesystem scan
+        uses: aquasecurity/trivy-action@v0.34.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          severity: CRITICAL,HIGH,MEDIUM
+          exit-code: "0"
+          ignore-unfixed: true

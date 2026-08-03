@@ -1,0 +1,132 @@
+name: Destroy
+
+on:
+  workflow_dispatch:
+    inputs:
+      workspace:
+        description: 'Terraform workspace to destroy'
+        required: true
+        type: string
+      confirm_destroy:
+        description: 'Confirm destruction of the selected workspace'
+        required: true
+        default: false
+        type: boolean
+
+env:
+  AWS_REGION: us-east-1
+  DEPLOY_WORKSPACE: ${{ github.event.inputs.workspace }}
+
+jobs:
+  destroy-lambdas:
+    if: ${{ github.event.inputs.confirm_destroy == 'true' }}
+    name: Destroy ${{ matrix.name }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: order processor
+            working_directory: backend/lambdas/order-processor/terraform
+            backend_key: order/terraform.tfstate
+            image_name: eventpro-order-processor
+          - name: payment processor
+            working_directory: backend/lambdas/payment-processor/terraform
+            backend_key: payment/terraform.tfstate
+            image_name: eventpro-payment-processor
+          - name: notification sender
+            working_directory: backend/lambdas/notification-sender/terraform
+            backend_key: notification/terraform.tfstate
+            image_name: eventpro-notification-sender
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Terraform destroy
+        uses: ./.github/actions/terraform
+        with:
+          working-directory: ${{ matrix.working_directory }}
+          workspace: ${{ env.DEPLOY_WORKSPACE }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+          backend-bucket: eventpro-site-state
+          backend-key: ${{ matrix.backend_key }}
+          destroy: 'yes'
+          variables: |
+            image_registry=destroy-placeholder
+            image_name=${{ matrix.image_name }}
+            image_tag=destroy-placeholder
+
+  destroy-services:
+    if: ${{ github.event.inputs.confirm_destroy == 'true' }}
+    name: Destroy services
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Terraform destroy
+        uses: ./.github/actions/terraform
+        with:
+          working-directory: backend/services/terraform
+          workspace: ${{ env.DEPLOY_WORKSPACE }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+          backend-bucket: eventpro-site-state
+          backend-key: services/terraform.tfstate
+          destroy: 'yes'
+          variables: |
+            image_registry=destroy-placeholder
+            image_name=eventpro-api
+            image_tag=destroy-placeholder
+            domain_name=${{ vars.DOMAIN_NAME || secrets.DOMAIN_NAME }}
+
+  destroy-frontend:
+    if: ${{ github.event.inputs.confirm_destroy == 'true' }}
+    name: Destroy frontend
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Terraform destroy
+        uses: ./.github/actions/terraform
+        with:
+          working-directory: eventpro-frontend/terraform
+          workspace: ${{ env.DEPLOY_WORKSPACE }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+          backend-bucket: eventpro-site-state
+          backend-key: frontend/terraform.tfstate
+          destroy: 'yes'
+          variables: |
+            domain_name=${{ vars.DOMAIN_NAME || secrets.DOMAIN_NAME }}
+
+  destroy-shared-infra:
+    if: ${{ github.event.inputs.confirm_destroy == 'true' }}
+    name: Destroy shared infra
+    runs-on: ubuntu-latest
+    needs:
+      - destroy-lambdas
+      - destroy-services
+      - destroy-frontend
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Terraform destroy
+        uses: ./.github/actions/terraform
+        with:
+          working-directory: backend/shared-infra
+          workspace: ${{ env.DEPLOY_WORKSPACE }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+          backend-bucket: eventpro-site-state
+          backend-key: shared-infra/terraform.tfstate
+          destroy: 'yes'
+          variables: |
+            domain_name=${{ vars.DOMAIN_NAME || secrets.DOMAIN_NAME }}

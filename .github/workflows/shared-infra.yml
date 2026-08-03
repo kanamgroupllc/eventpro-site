@@ -1,0 +1,50 @@
+name: Shared Infra
+
+on:
+  workflow_dispatch:
+    inputs:
+      workspace:
+        description: 'Workspace to deploy to'
+        required: false
+        default: 'dev'
+        type: string
+      run_deploy:
+        description: 'Run deploy steps (Terraform apply)'
+        required: true
+        default: true
+        type: boolean
+  workflow_call:
+    inputs:
+      workspace:
+        description: 'Workspace to deploy to'
+        required: false
+        default: 'dev'
+        type: string
+      run_deploy:
+        description: 'Run deploy steps (Terraform apply)'
+        required: false
+        default: true
+        type: boolean
+
+env:
+  AWS_REGION: us-east-1
+  DEPLOY_WORKSPACE: ${{ inputs.workspace || github.event.inputs.workspace || 'dev' }}
+
+jobs:
+  shared-infra:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: deploy
+        uses: ./.github/actions/terraform
+        with:
+          working-directory: backend/shared-infra
+          workspace: ${{ env.DEPLOY_WORKSPACE }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          backend-bucket: eventpro-site-state
+          backend-key: shared-infra/terraform.tfstate
+          variables: |
+            domain_name=${{ vars.DOMAIN_NAME || secrets.DOMAIN_NAME }}

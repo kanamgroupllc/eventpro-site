@@ -1,0 +1,15 @@
+spring:
+  application:
+    name: notification-sender
+  main:
+    web-application-type: "none"
+  threads:
+    virtual:
+      enabled: true
+
+spring.cloud.function:
+  definition: sendNotification
+
+ses:
+  sender:
+    email: ${SES_SENDER_EMAIL:noreply@kanamevents.com}

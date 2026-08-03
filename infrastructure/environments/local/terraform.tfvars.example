@@ -1,0 +1,27 @@
+# Terraform Variables for Local Development Environment
+# 
+# NOTE: All variables have defaults, so this file is OPTIONAL.
+# You only need to create terraform.tfvars if you want to override defaults.
+#
+# To use this file:
+#   1. Copy this file: cp terraform.tfvars.example terraform.tfvars
+#   2. Uncomment and modify values as needed
+#   3. Run: terraform apply
+
+# AWS region (used for LocalStack)
+# aws_region = "us-east-1"
+
+# Environment name
+# environment = "local"
+
+# Prefix for resource names
+# name_prefix = "eventpro-local"
+
+# Common tags for all resources
+# tags = {
+#   Environment = "local"
+#   Project     = "eventpro"
+#   ManagedBy   = "terraform"
+#   # Add custom tags here if needed
+# }
+

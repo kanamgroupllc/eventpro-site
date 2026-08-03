@@ -1,0 +1,23 @@
+# Production profile: lock down docs and actuator; enable reCAPTCHA when keys are set.
+eventpro:
+  recaptcha:
+    enabled: ${RECAPTCHA_ENABLED:true}
+  security:
+    api:
+      public-swagger: false
+      public-actuator-metrics: false
+
+management:
+  endpoint:
+    health:
+      show-details: when-authorized
+
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
+
+logging:
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} %-5p [%X{correlationId}] [%c{2}] (%t) %s%e%n"

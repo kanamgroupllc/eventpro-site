@@ -1,0 +1,94 @@
+name: Frontend
+
+on:
+  workflow_dispatch:
+    inputs:
+      workspace:
+        description: 'Workspace to deploy to'
+        required: false
+        default: 'dev'
+        type: string
+      run_deploy:
+        description: 'Run deploy steps (Terraform apply + S3 sync + invalidation)'
+        required: true
+        default: true
+        type: boolean
+  workflow_call:
+    inputs:
+      workspace:
+        description: 'Workspace to deploy to'
+        required: false
+        default: 'dev'
+        type: string
+      run_deploy:
+        description: 'Run deploy steps (Terraform apply + S3 sync + invalidation)'
+        required: false
+        default: true
+        type: boolean
+
+env:
+  AWS_REGION: us-east-1
+  DEPLOY_WORKSPACE: ${{ inputs.workspace || github.event.inputs.workspace || 'dev' }}
+
+jobs:
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Install dependencies
+        run: npm ci
+        working-directory: eventpro-frontend
+
+      - name: Build
+        run: npm run build
+        working-directory: eventpro-frontend
+        env:
+          VITE_API_BASE_URL: https://${{ env.DEPLOY_WORKSPACE }}-api.${{ vars.DOMAIN_NAME || secrets.DOMAIN_NAME }}
+          VITE_STRIPE_PUBLISHABLE_KEY: ${{ secrets.STRIPE_PUBLISHABLE_KEY }}
+
+      - name: Terraform
+        uses: ./.github/actions/terraform
+        with:
+          working-directory: eventpro-frontend/terraform
+          workspace: ${{ env.DEPLOY_WORKSPACE }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          backend-bucket: eventpro-site-state
+          backend-key: frontend/terraform.tfstate
+          variables: |
+            domain_name=${{ vars.DOMAIN_NAME || secrets.DOMAIN_NAME }}
+
+      - name: Sync to S3
+        run: |
+          cd eventpro-frontend/terraform
+          terraform init -backend-config=bucket=eventpro-site-state -backend-config=key=frontend/terraform.tfstate -backend-config=region=${{ env.AWS_REGION }} -backend-config=use_lockfile=true
+          terraform workspace select ${{ env.DEPLOY_WORKSPACE }} || terraform workspace new ${{ env.DEPLOY_WORKSPACE }}
+          BUCKET=$(terraform output -raw bucket_name)
+          cd ../..
+          aws s3 sync eventpro-frontend/dist/ "s3://$BUCKET/" \
+            --delete \
+            --exclude 'index.html' \
+            --exclude 'assets/*'
+          aws s3 sync eventpro-frontend/dist/assets/ "s3://$BUCKET/assets/" \
+            --delete \
+            --cache-control 'public,max-age=31536000,immutable'
+          aws s3 cp eventpro-frontend/dist/index.html "s3://$BUCKET/index.html" \
+            --content-type 'text/html' \
+            --cache-control 'no-cache,no-store,must-revalidate'
+
+      - name: CloudFront invalidation
+        run: |
+          cd eventpro-frontend/terraform
+          DIST_ID=$(terraform output -raw distribution_id)
+          INVALIDATION_ID=$(aws cloudfront create-invalidation --distribution-id "$DIST_ID" --paths "/*" --query 'Invalidation.Id' --output text)
+          aws cloudfront wait invalidation-completed --distribution-id "$DIST_ID" --id "$INVALIDATION_ID"
+
+        env:
+          DOMAIN_NAME: ${{ vars.DOMAIN_NAME || secrets.DOMAIN_NAME }}

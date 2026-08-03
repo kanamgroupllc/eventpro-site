@@ -1,0 +1,37 @@
+plugins {
+    id 'java'
+}
+
+dependencies {
+    // Spring Boot
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework.boot:spring-boot-starter-validation'
+    
+    // AWS SDK
+    implementation platform("software.amazon.awssdk:bom:${project.ext.awsSdkVersion}")
+    implementation 'software.amazon.awssdk:s3'
+    
+    // QR Code Generation
+    implementation 'com.google.zxing:core:3.5.3'
+    implementation 'com.google.zxing:javase:3.5.3'
+    
+    // PDF Generation
+    implementation 'org.apache.pdfbox:pdfbox:2.0.29'
+    
+    // Database
+    runtimeOnly "org.postgresql:postgresql:${project.ext.postgresqlVersion}"
+    
+    // Lombok
+    compileOnly "org.projectlombok:lombok:${project.ext.lombokVersion}"
+    annotationProcessor "org.projectlombok:lombok:${project.ext.lombokVersion}"
+    
+    // Core module dependency
+    implementation project(':eventpro-core')
+    
+    // Testing
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'com.h2database:h2' // For @DataJpaTest
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher' // Required for JUnit 5 test execution
+}
+

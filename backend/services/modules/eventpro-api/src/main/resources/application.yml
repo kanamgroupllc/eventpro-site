@@ -1,0 +1,204 @@
+spring:
+  application:
+    name: eventpro-api
+  # DataSource configuration is handled by SecretsManagerDataSourceConfig (non-local) or LocalDataSourceConfig (local)
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 10MB
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: false
+        jdbc:
+          time_zone: UTC
+  
+  # Flyway Database Migration Configuration
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+    baseline-version: 0
+    validate-on-migrate: true
+    clean-disabled: true
+    out-of-order: false
+
+aws:
+  region: ${AWS_REGION:us-east-1}
+  s3:
+    bucketName: ${S3_BUCKET_NAME:eventpro-images-local}
+  sqs:
+    endpoint: ${SQS_ENDPOINT:} # Optional: for LocalStack (e.g., http://localhost:4566)
+    orderQueueUrl: ${ORDER_QUEUE_URL}
+    paymentQueueUrl: ${PAYMENT_QUEUE_URL}
+    notificationQueueUrl: ${NOTIFICATION_QUEUE_URL}
+  ses:
+    region: ${AWS_REGION:us-east-1}
+    endpoint: ${SES_ENDPOINT:${AWS_ENDPOINT_URL:}} # Optional: for LocalStack (e.g. http://localhost:4566)
+    fromEmail: ${SES_FROM_EMAIL:noreply@kanamevents.com}
+  sns:
+    region: ${AWS_REGION:us-east-1}
+  secrets-manager:
+    secret-arn: ${DB_SECRET_ARN:}  # RDS-managed secret ARN for database credentials (only for non-local profiles)
+
+stripe:
+  secretKey: ${STRIPE_SECRET_KEY}
+  publishableKey: ${STRIPE_PUBLISHABLE_KEY:}
+  webhookSecret: ${STRIPE_WEBHOOK_SECRET:}
+  # Subscription Price IDs (create in Stripe Dashboard → Products → add recurring prices)
+  subscription:
+    priceIdProMonthly: ${STRIPE_PRICE_PRO_MONTHLY:}
+    priceIdProYearly: ${STRIPE_PRICE_PRO_YEARLY:}
+    priceIdEnterpriseMonthly: ${STRIPE_PRICE_ENTERPRISE_MONTHLY:}
+    priceIdEnterpriseYearly: ${STRIPE_PRICE_ENTERPRISE_YEARLY:}
+
+# Ticket reservation expiry: release reserved tickets after this many minutes if not purchased.
+# Use 10 for high-demand sales (one winner, rest rejected instantly via atomic reserve).
+eventpro:
+  checkout:
+    resume-token-secret: ${CHECKOUT_RESUME_TOKEN_SECRET:local-checkout-resume-secret-change-me}
+  ticket:
+    reservation-expiry-minutes: ${EVENTPRO_RESERVATION_EXPIRY_MINUTES:15}
+  # Payout: revenue from orders in the last N days is "pending" (1–3 day hold); the rest is "available".
+  payout:
+    pending-hold-days: ${EVENTPRO_PAYOUT_PENDING_HOLD_DAYS:3}
+  # Sales tax / VAT: jurisdiction-based by buyer state (US). Pass state/country to checkout-totals.
+  # default-rate: fallback when no state or state not in map. rates-by-state: state code -> rate % (e.g. CA 7.25).
+  tax:
+    default-rate: ${EVENTPRO_TAX_DEFAULT_RATE:0}
+    rates-by-state:
+      CA: 7.25
+      NY: 8.875
+      TX: 6.25
+      FL: 6.0
+      WA: 6.5
+      IL: 6.25
+      NJ: 6.625
+      PA: 6.0
+      OH: 5.75
+      GA: 4.0
+      NC: 4.75
+      MA: 6.25
+      VA: 4.3
+      AZ: 5.6
+      CO: 2.9
+      MI: 6.0
+      MN: 6.875
+      NV: 6.85
+      MD: 6.0
+      WI: 5.0
+      MO: 4.225
+      IN: 7.0
+      TN: 7.0
+      CT: 6.35
+      OR: 0
+      MT: 0
+      NH: 0
+      DE: 0
+      AK: 0
+  # Platform fees by tier (must match Pricing page: Basic 3.5%+$0.99, Pro 2.9%+$0.79, Enterprise 2.5%+$0.49).
+  platform:
+    tiers:
+      basic:
+        fee-percent: 3.5
+        fee-per-ticket: 0.99
+      pro:
+        fee-percent: 2.9
+        fee-per-ticket: 0.79
+      enterprise:
+        fee-percent: 2.5
+        fee-per-ticket: 0.49
+  # Send order confirmation email after successful payment (set false if SES not configured locally)
+  notifications:
+    order-confirmation-enabled: ${EVENTPRO_ORDER_CONFIRMATION_EMAIL_ENABLED:true}
+    organizer-email-attendees-enabled: ${EVENTPRO_ORGANIZER_EMAIL_ATTENDEES_ENABLED:true}
+  # In-memory per-IP rate limit for public/sensitive endpoints (login, signup, guest-reserve, create-intent)
+  rate-limit:
+    enabled: ${EVENTPRO_RATE_LIMIT_ENABLED:true}
+    requests-per-minute: ${EVENTPRO_RATE_LIMIT_REQUESTS_PER_MINUTE:60}
+    window-seconds: ${EVENTPRO_RATE_LIMIT_WINDOW_SECONDS:60}
+  recaptcha:
+    enabled: ${RECAPTCHA_ENABLED:false}
+    secret-key: ${RECAPTCHA_SECRET_KEY:}
+    site-key: ${RECAPTCHA_SITE_KEY:}
+    min-score: ${RECAPTCHA_MIN_SCORE:0.5}
+  security:
+    api:
+      public-swagger: ${EVENTPRO_PUBLIC_SWAGGER:true}
+      public-actuator-metrics: ${EVENTPRO_PUBLIC_ACTUATOR_METRICS:false}
+    csrf:
+      enabled: ${EVENTPRO_CSRF_ENABLED:true}
+      secure-cookie: ${EVENTPRO_CSRF_SECURE_COOKIE:true}
+      same-site: ${EVENTPRO_CSRF_SAME_SITE:Strict}
+
+security:
+  jwt:
+    issuer: ${JWT_ISSUER:eventpro}
+    accessTokenTtlSeconds: ${JWT_ACCESS_TTL_SECONDS:3600}
+    # When empty and profile=local, JwtConfig generates in-memory dev keys so the app can start
+    publicKey: ${JWT_PUBLIC_KEY:}
+    privateKey: ${JWT_PRIVATE_KEY:}
+
+server:
+  port: 8080
+  # Listen on all interfaces so the app is reachable via Docker port mapping (host -> container)
+  address: 0.0.0.0
+  compression:
+    enabled: true
+    # Only compress text/JSON; never compress image/* (e.g. image proxy) to avoid ZLIB/stream issues
+    mime-types: text/html,text/xml,text/plain,text/css,text/javascript,application/javascript,application/json,application/xml
+  error:
+    include-message: always
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      # Show details for all callers so /actuator/health is useful when backend is up
+      show-details: always
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+
+logging:
+  level:
+    com.accessplus.eventpro: INFO
+    org.springframework: WARN
+    org.springframework.boot.context.logging: WARN
+    org.springframework.boot.logging: WARN
+    root: INFO
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} %-5p [%X{correlationId}] [%c{2}] (%t) %s%e%n"
+
+# OpenAPI/Swagger Configuration
+springdoc:
+  api-docs:
+    path: /api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    enabled: true
+    operationsSorter: method
+    tagsSorter: alpha
+  # Disable QueryDSL support (not used in this project, prevents TypeInformation classpath issues with DevTools)
+  querydsl:
+    enabled: false
+
+---
+spring:
+  config:
+    activate:
+      on-profile: local
+
+eventpro:
+  security:
+    csrf:
+      # Local development runs over HTTP; deployed profiles retain Secure=true.
+      secure-cookie: false

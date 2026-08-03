@@ -1,0 +1,35 @@
+services:
+  localstack:
+    image: ${LOCALSTACK_IMAGE:-localstack/localstack-pro:2026.07.0}
+    container_name: eventpro-localstack-pro
+    ports:
+      - "443:443"
+      - "4566:4566"
+      - "4510-4559:4510-4559"
+    environment:
+      LOCALSTACK_AUTH_TOKEN: ${LOCALSTACK_AUTH_TOKEN:?Set LOCALSTACK_AUTH_TOKEN in .env.lstk}
+      LOCALSTACK_HOST: ${LOCALSTACK_HOST:-localhost.localstack.cloud:4566}
+      GATEWAY_LISTEN: ${GATEWAY_LISTEN:-0.0.0.0:4566,0.0.0.0:443}
+      EXTRA_CORS_ALLOWED_ORIGINS: ${EXTRA_CORS_ALLOWED_ORIGINS:-https://lstk-app.localhost.localstack.cloud,https://localhost.localstack.cloud:4566,http://localhost.localstack.cloud:4566,http://localhost:4566}
+      EXTRA_CORS_ALLOWED_HEADERS: ${EXTRA_CORS_ALLOWED_HEADERS:-X-XSRF-TOKEN,X-Correlation-Id}
+      DNS_ADDRESS: ${DNS_ADDRESS:-0.0.0.0}
+      DNS_RESOLVE_IP: ${DNS_RESOLVE_IP:-127.0.0.1}
+      EXTERNAL_SERVICE_PORTS_START: ${EXTERNAL_SERVICE_PORTS_START:-4510}
+      EXTERNAL_SERVICE_PORTS_END: ${EXTERNAL_SERVICE_PORTS_END:-4559}
+      SERVICES: ${LOCALSTACK_SERVICES:-account,acm,apigateway,application-autoscaling,backup,cloudformation,cloudfront,cloudwatch,cognito-idp,cognito-identity,cloudcontrol,dynamodb,ec2,ecr,ecs,eks,efs,elasticache,elb,elbv2,events,iam,kafka,kinesis,kms,lambda,logs,mq,opensearch,pipes,rds,route53,s3,secretsmanager,ses,sesv2,sns,sqs,ssm,stepfunctions,sts}
+      PERSISTENCE: ${LOCALSTACK_PERSISTENCE:-1}
+      DEBUG: ${LOCALSTACK_DEBUG:-0}
+      DOCKER_HOST: unix:///var/run/docker.sock
+      MAIN_CONTAINER_NAME: eventpro-localstack-pro
+    volumes:
+      - eventpro_localstack_data:/var/lib/localstack
+      - /var/run/docker.sock:/var/run/docker.sock
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:4566/_localstack/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
+
+volumes:
+  eventpro_localstack_data:

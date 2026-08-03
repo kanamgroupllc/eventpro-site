@@ -1,0 +1,97 @@
+name: Docker Build and Push to ECR
+description: Build Docker image and push to Amazon ECR. Uses aws-actions/amazon-ecr-login for authentication.
+
+inputs:
+  aws-region:
+    description: 'AWS Region'
+    required: false
+    default: 'us-east-1'
+  aws-access-key-id:
+    description: 'AWS Access Key ID'
+    required: true
+  aws-secret-access-key:
+    description: 'AWS Secret Access Key'
+    required: true
+  ecr-repository:
+    description: 'ECR repository name (e.g. eventpro-api, eventpro-order-processor)'
+    required: true
+  context:
+    description: 'Docker build context path'
+    required: false
+    default: 'backend'
+  dockerfile:
+    description: 'Path to Dockerfile'
+    required: false
+    default: 'backend/services/Dockerfile'
+  image-tag:
+    description: 'Image tag'
+    required: false
+    default: 'latest'
+  image-tags:
+    description: 'Optional comma-separated list of tags to push (first tag is the primary tag)'
+    required: false
+    default: ''
+
+outputs:
+  image-registry:
+    description: 'ECR registry hostname'
+    value: ${{ steps.build.outputs.image-registry }}
+  image-name:
+    description: 'ECR repository name'
+    value: ${{ steps.build.outputs.image-name }}
+  image-tag:
+    description: 'Image tag'
+    value: ${{ steps.build.outputs.image-tag }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ inputs.aws-access-key-id }}
+        aws-secret-access-key: ${{ inputs.aws-secret-access-key }}
+        aws-region: ${{ inputs.aws-region }}
+
+    - name: Login to Amazon ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v2
+
+    - name: Build, tag, and push image to Amazon ECR
+      id: build
+      env:
+        REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        REPOSITORY: ${{ inputs.ecr-repository }}
+        IMAGE_TAG: ${{ inputs.image-tag }}
+        IMAGE_TAGS: ${{ inputs.image-tags }}
+      run: |
+        set -euo pipefail
+
+        tags=()
+        if [ -n "$IMAGE_TAGS" ]; then
+          while IFS= read -r raw_tag; do
+            tag="$(echo "$raw_tag" | xargs)"
+            [ -z "$tag" ] && continue
+            tags+=("$tag")
+          done < <(printf '%s\n' "$IMAGE_TAGS" | tr ',' '\n')
+        fi
+
+        if [ ${#tags[@]} -eq 0 ]; then
+          tags=("$IMAGE_TAG")
+        fi
+
+        primary_tag="${tags[0]}"
+
+        docker image build -t "$REGISTRY/$REPOSITORY:$primary_tag" -f "${{ inputs.dockerfile }}" "${{ inputs.context }}"
+
+        for tag in "${tags[@]}"; do
+          if [ "$tag" != "$primary_tag" ]; then
+            docker image tag "$REGISTRY/$REPOSITORY:$primary_tag" "$REGISTRY/$REPOSITORY:$tag"
+          fi
+          docker image push "$REGISTRY/$REPOSITORY:$tag"
+        done
+
+        echo "image-registry=$REGISTRY" >> "$GITHUB_OUTPUT"
+        echo "image-name=$REPOSITORY" >> "$GITHUB_OUTPUT"
+        echo "image-tag=$primary_tag" >> "$GITHUB_OUTPUT"
+      shell: bash

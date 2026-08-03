@@ -1,0 +1,52 @@
+name: Resolve Image Tags
+description: Resolve container image tags from branch/PR vs component release tags.
+
+inputs:
+  tag-prefix:
+    description: 'Component release tag prefix (e.g. api-v, order-processor-v)'
+    required: true
+
+outputs:
+  primary_tag:
+    description: 'Primary image tag used for Terraform deploy (vX.Y.Z on release tags, sha-<sha> otherwise)'
+    value: ${{ steps.resolve.outputs.primary_tag }}
+  all_tags:
+    description: 'Comma-separated list of image tags to push'
+    value: ${{ steps.resolve.outputs.all_tags }}
+
+runs:
+  using: composite
+  steps:
+    - name: Resolve tags
+      id: resolve
+      shell: bash
+      env:
+        TAG_PREFIX: ${{ inputs.tag-prefix }}
+      run: |
+        set -euo pipefail
+
+        short_sha="${GITHUB_SHA::12}"
+
+        if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+          tag_name="${GITHUB_REF#refs/tags/}"
+
+          if [[ "$tag_name" != "$TAG_PREFIX"* ]]; then
+            echo "Unexpected tag '$tag_name' for prefix '$TAG_PREFIX'" >&2
+            exit 1
+          fi
+
+          semver_no_v="${tag_name#$TAG_PREFIX}"
+          if ! [[ "$semver_no_v" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$ ]]; then
+            echo "Invalid semantic version '$semver_no_v' extracted from '$tag_name'" >&2
+            exit 1
+          fi
+
+          primary_tag="v$semver_no_v"
+          all_tags="$primary_tag,sha-$short_sha"
+        else
+          primary_tag="sha-$short_sha"
+          all_tags="$primary_tag"
+        fi
+
+        echo "primary_tag=$primary_tag" >> "$GITHUB_OUTPUT"
+        echo "all_tags=$all_tags" >> "$GITHUB_OUTPUT"

@@ -1,0 +1,72 @@
+plugins {
+    id 'java'
+    id 'org.springframework.boot'
+}
+
+springBoot {
+    mainClass = 'com.accessplus.eventpro.EventProApplication'
+}
+
+dependencies {
+    // Include all modules
+    implementation project(':eventpro-core')
+    implementation project(':eventpro-event')
+    implementation project(':eventpro-order')
+    implementation project(':eventpro-payment')
+    // Note: eventpro-notification removed - notifications are handled asynchronously by notification-sender Lambda
+    
+    // Spring Boot
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+    implementation 'io.micrometer:micrometer-registry-prometheus'
+    implementation 'org.springframework.boot:spring-boot-starter-websocket'
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    implementation 'org.springframework.boot:spring-boot-starter-security'
+    implementation 'org.springframework.boot:spring-boot-starter-validation'
+    
+    // Spring Data Commons (explicitly added to fix DevTools classpath issue with TypeInformation)
+    implementation 'org.springframework.data:spring-data-commons'
+    
+    // Database Migration - Use Spring Boot starter for proper auto-configuration
+    implementation 'org.springframework.boot:spring-boot-starter-flyway'
+    // PostgreSQL 16 support (required for PostgreSQL 16.11)
+    implementation 'org.flywaydb:flyway-database-postgresql'
+    
+    // OpenAPI/Swagger Documentation
+    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.13'
+    
+    // Spring Boot DevTools (for hot reload in development)
+    developmentOnly 'org.springframework.boot:spring-boot-devtools'
+    
+    // PDF generation (1099-K)
+    implementation 'org.apache.pdfbox:pdfbox:2.0.29'
+
+    // AWS SDK
+    implementation platform("software.amazon.awssdk:bom:${project.ext.awsSdkVersion}")
+    implementation 'software.amazon.awssdk:sqs'
+
+    // Stripe (webhook controller and subscription checkout use Stripe types directly)
+    implementation 'com.stripe:stripe-java:24.16.0'
+
+    // CircuitBreakerExceptionHandler (CallNotPermittedException); version from resilience4j-bom in root build.gradle
+    implementation 'io.github.resilience4j:resilience4j-circuitbreaker'
+
+    // Lombok
+    compileOnly "org.projectlombok:lombok:${project.ext.lombokVersion}"
+    annotationProcessor "org.projectlombok:lombok:${project.ext.lombokVersion}"
+    
+    // Testing
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'org.springframework.security:spring-security-test'
+}
+
+// Disable plain JAR (only create executable JAR)
+jar {
+    enabled = false
+}
+
+// Configure bootJar task
+bootJar {
+    archiveBaseName = 'eventpro-api'
+    archiveVersion = project.version
+}

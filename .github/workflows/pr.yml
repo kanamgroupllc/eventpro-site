@@ -1,0 +1,46 @@
+name: PR
+
+on:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Build services
+        uses: ./.github/actions/gradle-task
+        with:
+          working-directory: backend/services
+          java-version: '25'
+
+      - name: Build Notification Sender Lambda
+        uses: ./.github/actions/gradle-task
+        with:
+          working-directory: backend/lambdas/notification-sender
+          java-version: '25'
+
+      - name: Build Order processor Lambda
+        uses: ./.github/actions/gradle-task
+        with:
+          working-directory: backend/lambdas/order-processor
+          java-version: '25'
+
+      - name: Build Payment processor Lambda
+        uses: ./.github/actions/gradle-task
+        with:
+          working-directory: backend/lambdas/payment-processor
+          java-version: '25'
+
+      - name: Setup Node for Frontend
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Install dependencies
+        run: npm ci
+        working-directory: eventpro-frontend

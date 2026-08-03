@@ -1,0 +1,80 @@
+name: Payment Processor
+
+on:
+  push:
+    tags:
+      - 'payment-processor-v*.*.*'
+  workflow_dispatch:
+    inputs:
+      workspace:
+        description: 'Workspace to deploy to'
+        required: false
+        default: 'dev'
+        type: string
+      run_deploy:
+        description: 'Run deploy steps (ECR push + Terraform apply)'
+        required: true
+        default: true
+        type: boolean
+  workflow_call:
+    inputs:
+      workspace:
+        description: 'Workspace to deploy to'
+        required: false
+        default: 'dev'
+        type: string
+      run_deploy:
+        description: 'Run deploy steps (ECR push + Terraform apply)'
+        required: false
+        default: true
+        type: boolean
+
+env:
+  AWS_REGION: us-east-1
+  DEPLOY_WORKSPACE: ${{ inputs.workspace || github.event.inputs.workspace || 'dev' }}
+jobs:
+  payment-processor:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: build
+        uses: ./.github/actions/gradle-task
+        with:
+          working-directory: backend/lambdas/payment-processor
+          java-version: '25'
+
+      - name: Resolve image tags
+        id: image-meta
+        uses: ./.github/actions/image-tags
+        with:
+          tag-prefix: payment-processor-v
+
+      - name: ecr-docker-build
+        id: ecr-docker-build
+        uses: ./.github/actions/docker
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+          ecr-repository: eventpro-payment-processor
+          context: backend
+          dockerfile: backend/lambdas/payment-processor/Dockerfile
+          image-tag: ${{ steps.image-meta.outputs.primary_tag }}
+          image-tags: ${{ steps.image-meta.outputs.all_tags }}
+
+      - name: deploy
+        uses: ./.github/actions/terraform
+        with:
+          working-directory: backend/lambdas/payment-processor/terraform
+          workspace: ${{ env.DEPLOY_WORKSPACE }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          variables: |
+            image_registry=${{ steps.ecr-docker-build.outputs.image-registry }}
+            image_name=${{ steps.ecr-docker-build.outputs.image-name }}
+            image_tag=${{ steps.ecr-docker-build.outputs.image-tag }}
+            stripe_secret_key=${{ secrets.STRIPE_SECRET_KEY }}
+            new_relic_license_key=${{ secrets.NEW_RELIC_LICENSE_KEY }}
+            new_relic_account_id=${{ secrets.NEW_RELIC_ACCOUNT_ID }}

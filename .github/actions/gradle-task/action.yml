@@ -1,0 +1,56 @@
+name: Build gradle project
+description: Build gradle project with JDK 25
+
+inputs:
+  test:
+    default: "yes"
+    description: "Run tests?"
+    required: false
+  working-directory:
+    description: working directory
+    required: true
+  java-version:
+    description: Java version
+    default: "25"
+    required: false
+
+runs:
+  using: "composite"
+  steps:
+  - name: Print Where I AM
+    run: pwd
+    shell: bash
+
+  - name: Set up JDK
+    uses: actions/setup-java@v4
+    with:
+      distribution: 'temurin'
+      java-version: ${{ inputs.java-version }}
+
+  - name: Setup Gradle
+    uses: gradle/actions/setup-gradle@v4
+
+  # - name: Ensure Gradle Wrapper is Executable
+  #   run: chmod +x gradlew
+  #   shell: bash
+
+  # - name: Verify Gradle Version
+  #   run: ./gradlew --version
+  #   shell: bash
+
+  - name: gradle clean
+    run: |
+      cd ${{ inputs.working-directory }}
+      ./gradlew clean
+    shell: bash
+
+  - name: gradle build
+    run: |
+      cd ${{ inputs.working-directory }}
+      if [[ "${{ inputs.test }}" == "no" ]]; then
+        echo "Skipping tests"
+        ./gradlew build -x test
+      else
+        ./gradlew build
+      fi
+    shell: bash

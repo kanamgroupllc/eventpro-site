@@ -1,0 +1,9 @@
+{
+  "name": "eventpro-site",
+  "private": true,
+  "workspaces": [
+    "eventpro-frontend",
+    "eventpro-mobile",
+    "packages/eventpro-shared"
+  ]
+}

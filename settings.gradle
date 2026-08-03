@@ -1,0 +1,11 @@
+// Root-level settings for multi-project build
+// Includes backend services
+
+rootProject.name = 'eventpro-site'
+
+// Backend services (Spring Boot modular monolith)
+includeBuild 'backend/services'
+
+// Note: Lambda functions are separate Gradle projects (backend/lambdas/*)
+// backend/shared is deprecated; services use eventpro-core, lambdas use local copies
+

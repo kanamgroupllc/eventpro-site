@@ -1,0 +1,16 @@
+rootProject.name = 'services'
+
+// Modular Monolith Modules
+include 'eventpro-core'
+include 'eventpro-event'
+include 'eventpro-order'
+include 'eventpro-payment'
+// Note: eventpro-notification removed - notifications are handled asynchronously by notification-sender Lambda
+include 'eventpro-api'
+
+project(':eventpro-core').projectDir = file('modules/eventpro-core')
+project(':eventpro-event').projectDir = file('modules/eventpro-event')
+project(':eventpro-order').projectDir = file('modules/eventpro-order')
+project(':eventpro-payment').projectDir = file('modules/eventpro-payment')
+project(':eventpro-api').projectDir = file('modules/eventpro-api')
+

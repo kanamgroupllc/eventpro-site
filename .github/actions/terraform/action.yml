@@ -1,0 +1,133 @@
+name: Terraform Action for AWS
+description: Terraform Action for AWS without SSH agent
+
+inputs:
+  aws-region:
+    description: 'AWS Region'
+    required: false
+    default: "us-east-1"
+  working-directory:
+    description: 'Directory of the Terraform configuration'
+    required: true
+  variables:
+    description: 'Newline-delimited Terraform variables as key=value entries'
+    required: false
+  workspace:
+    description: 'Terraform workspace'
+    required: true
+  aws-access-key-id:
+    description: 'AWS Access Key ID'
+    required: true
+  aws-secret-access-key:
+    description: 'AWS Secret Access Key'
+    required: true
+  destroy:
+    description: Terraform destroy
+    default: "no"
+    required: false
+  terraform-version:
+    description: 'Terraform version'
+    default: "1.12.0"
+    required: false
+  backend-bucket:
+    description: 'S3 backend bucket (e.g. eventpro-site-state)'
+    required: false
+    default: "eventpro-site-state"
+  backend-key:
+    description: 'S3 backend key (e.g. services/terraform.tfstate)'
+    required: false
+  backend-region:
+    description: 'S3 backend region'
+    required: false
+    default: "us-east-1"
+
+runs:
+  using: "composite"
+  steps:
+  - name: Print Where I AM
+    run: pwd
+    shell: bash
+
+  - name: Print Directory Structure
+    run: ls -al ${{ inputs.working-directory }}
+    shell: bash
+
+  - name: Login to AWS
+    uses: aws-actions/configure-aws-credentials@v4
+    with:
+      aws-access-key-id: ${{ inputs.aws-access-key-id }}
+      aws-secret-access-key: ${{ inputs.aws-secret-access-key }}
+      aws-region: ${{ inputs.aws-region }}
+
+  - name: Setup Terraform
+    uses: hashicorp/setup-terraform@v3
+    with:
+      terraform_version: ${{ inputs.terraform-version }}
+
+  - name: Terraform Init
+    run: |
+      cd ${{ inputs.working-directory }}
+      if [ -f "versions.tf" ] || [ -f "main.tf" ]; then
+        INIT_ARGS="-upgrade"
+        if [ -n "${{ inputs.backend-bucket }}" ] && [ -n "${{ inputs.backend-key }}" ]; then
+          INIT_ARGS="$INIT_ARGS -backend-config=bucket=${{ inputs.backend-bucket }} -backend-config=key=${{ inputs.backend-key }} -backend-config=region=${{ inputs.backend-region }} -backend-config=use_lockfile=true"
+        fi
+        terraform init $INIT_ARGS
+      else
+        echo "No Terraform files found in ${{ inputs.working-directory }}, skipping init."
+      fi
+    shell: bash
+
+  - name: Select Terraform Workspace
+    run: |
+      cd ${{ inputs.working-directory }}
+      if [ -n "${{ inputs.workspace }}" ]; then
+        if [ "${{ inputs.destroy }}" = "yes" ]; then
+          terraform workspace select "${{ inputs.workspace }}"
+          exit 0
+        fi
+          terraform workspace select "${{ inputs.workspace }}" || terraform workspace new "${{ inputs.workspace }}"
+      else
+        echo "No workspace provided, skipping workspace selection."
+      fi
+      ls -ltr
+    shell: bash
+
+  - name: Terraform Validate
+    run: |
+      cd ${{ inputs.working-directory }}
+      terraform validate
+    shell: bash
+
+  - name: Terraform Apply or Destroy
+    env:
+      TERRAFORM_VARIABLES: ${{ inputs.variables }}
+    run: |
+      cd ${{ inputs.working-directory }}
+      ls -ltr
+      # Iterate through the variables and export each as TF_VAR_
+      if [ -n "$TERRAFORM_VARIABLES" ]; then
+        while IFS= read -r var; do
+          [ -z "$var" ] && continue
+          key="${var%%=*}"
+          value="${var#*=}"
+          if [ "$key" = "$var" ]; then
+            echo "Invalid variable format: '$var' (expected key=value)" >&2
+            exit 1
+          fi
+          if [ -z "$value" ]; then
+            echo "Skipping TF_VAR_${key} because value is empty"
+            continue
+          fi
+          echo "Exporting TF_VAR_${key}=[REDACTED]"
+          export "TF_VAR_${key}=$value"
+        done < <(printf '%s\n' "$TERRAFORM_VARIABLES")
+      fi
+      if [ "${{ inputs.destroy }}" = "yes" ]; then
+        echo "Destroying the infrastructure"
+        terraform destroy -auto-approve
+      else
+        echo "Applying the infrastructure"
+        terraform apply -auto-approve
+      fi
+    shell: bash

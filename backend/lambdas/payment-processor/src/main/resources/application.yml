@@ -1,0 +1,31 @@
+spring:
+  application:
+    name: payment-processor
+  main:
+    web-application-type: "none"
+  threads:
+    virtual:
+      enabled: true
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration
+  jpa:
+    hibernate:
+      ddl-auto: none
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+    open-in-view: false
+
+spring.cloud.function:
+  definition: processPayment
+
+sqs:
+  notification:
+    queue:
+      url: ${SQS_NOTIFICATION_QUEUE_URL:}
+
+stripe:
+  secret:
+    key: ${STRIPE_SECRET_KEY:}

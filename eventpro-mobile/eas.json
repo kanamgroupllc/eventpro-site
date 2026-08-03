@@ -1,0 +1,54 @@
+{
+  "cli": {
+    "version": ">= 16.0.0",
+    "appVersionSource": "remote"
+  },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_API_URL": "http://localhost:8080",
+        "EXPO_PUBLIC_WEB_URL": "http://localhost:5173"
+      }
+    },
+    "preview": {
+      "distribution": "internal",
+      "channel": "preview",
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://staging-api.yourdomain.com",
+        "EXPO_PUBLIC_WEB_URL": "https://staging.yourdomain.com"
+      },
+      "ios": {
+        "simulator": false
+      },
+      "android": {
+        "buildType": "apk"
+      }
+    },
+    "production": {
+      "distribution": "store",
+      "channel": "production",
+      "autoIncrement": true,
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://api.yourdomain.com",
+        "EXPO_PUBLIC_WEB_URL": "https://yourdomain.com"
+      }
+    }
+  },
+  "submit": {
+    "preview": {
+      "ios": {
+        "appleTeamId": "YOUR_APPLE_TEAM_ID"
+      }
+    },
+    "production": {
+      "ios": {
+        "appleTeamId": "YOUR_APPLE_TEAM_ID"
+      },
+      "android": {
+        "track": "internal"
+      }
+    }
+  }
+}

@@ -1,0 +1,27 @@
+plugins {
+    id 'java'
+}
+
+dependencies {
+    // Spring Boot
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    
+    // Stripe
+    implementation 'com.stripe:stripe-java:24.16.0'
+    
+    // Database
+    runtimeOnly "org.postgresql:postgresql:${project.ext.postgresqlVersion}"
+    
+    // Lombok
+    compileOnly "org.projectlombok:lombok:${project.ext.lombokVersion}"
+    annotationProcessor "org.projectlombok:lombok:${project.ext.lombokVersion}"
+    
+    // Module dependencies
+    implementation project(':eventpro-core')
+    implementation project(':eventpro-order')
+    
+    // Testing
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+}
+

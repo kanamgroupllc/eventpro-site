@@ -1,0 +1,195 @@
+services:
+  # Database - PostgreSQL for local development
+  postgres:
+    image: postgres:16-alpine
+    container_name: postgres
+    environment:
+      POSTGRES_DB: eventpro
+      POSTGRES_USER: eventpro
+      POSTGRES_PASSWORD: eventpro
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U eventpro -d eventpro"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - eventpro
+
+  # LocalStack - AWS services emulation for local development
+  localstack:
+    image: localstack/localstack:4.10.0
+    container_name: localstack
+    environment:
+      - SERVICES=sqs,s3,secretsmanager,sns,ses,lambda,logs,iam
+      - DEBUG=1
+      - DATA_DIR=/tmp/localstack/data
+      - DOCKER_HOST=unix:///var/run/docker.sock
+      - PERSISTENCE=1
+      - LAMBDA_EXECUTOR=docker
+      - LAMBDA_REMOTE_DOCKER=false
+    ports:
+      - "4566:4566"
+      - "4510-4559:4510-4559"
+    volumes:
+      - localstack_data:/var/lib/localstack
+      - "/var/run/docker.sock:/var/run/docker.sock"
+    networks:
+      - eventpro
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4566/_localstack/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # EventPro Backend API - Development mode with hot reload
+  backend:
+    image: gradle:9.2.1-jdk25-corretto
+    container_name: backend
+    working_dir: /app
+    env_file:
+      - .env
+    volumes:
+      # Mount entire backend directory to access services and lambdas
+      # This allows DevTools to detect changes and hot reload
+      - ./backend:/app/backend
+      - gradle_cache:/root/.gradle
+    ports:
+      - "8080:8080"
+      - "35729:35729"  # DevTools LiveReload port
+    environment:
+      - SPRING_PROFILES_ACTIVE=local
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=eventpro
+      - DB_USERNAME=eventpro
+      - DB_PASSWORD=eventpro
+      - AWS_ENDPOINT_URL=http://localstack:4566
+      - AWS_REGION=us-east-1
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-test}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-test}
+      - S3_BUCKET_NAME=${S3_BUCKET_NAME:-eventpro-images-local}
+      - AWS_S3_PUBLIC_ENDPOINT=http://localhost:4566
+      # SQS Queue URLs - loaded from .env file (created by make local-infra)
+      # If not set, application-local.yml defaults will be used
+      - ORDER_QUEUE_URL=${ORDER_QUEUE_URL:-}
+      - PAYMENT_QUEUE_URL=${PAYMENT_QUEUE_URL:-}
+      - NOTIFICATION_QUEUE_URL=${NOTIFICATION_QUEUE_URL:-}
+      # JWT Configuration - set in .env file for local development
+      - JWT_ISSUER=${JWT_ISSUER:-eventpro}
+      - JWT_ACCESS_TTL_SECONDS=${JWT_ACCESS_TTL_SECONDS:-3600}
+      - JWT_PUBLIC_KEY=${JWT_PUBLIC_KEY}
+      - JWT_PRIVATE_KEY=${JWT_PRIVATE_KEY}
+      # Stripe: values from .env (Compose loads .env from project root when you run from project root)
+      - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
+      - STRIPE_PUBLISHABLE_KEY=${STRIPE_PUBLISHABLE_KEY}
+      - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET}
+      # Subscription price IDs (Stripe Dashboard → Products → copy Price ID, e.g. price_xxx)
+      - STRIPE_PRICE_PRO_MONTHLY=${STRIPE_PRICE_PRO_MONTHLY:-}
+      - STRIPE_PRICE_PRO_YEARLY=${STRIPE_PRICE_PRO_YEARLY:-}
+      - STRIPE_PRICE_ENTERPRISE_MONTHLY=${STRIPE_PRICE_ENTERPRISE_MONTHLY:-}
+      - STRIPE_PRICE_ENTERPRISE_YEARLY=${STRIPE_PRICE_ENTERPRISE_YEARLY:-}
+      # Enable DevTools for hot reload
+      - SPRING_DEVTOOLS_RESTART_ENABLED=true
+    command: >
+      sh -c "
+        cd /app/backend/services &&
+        chmod +x ./gradlew &&
+        ./gradlew :eventpro-api:bootRun --no-daemon --continuous
+      "
+    depends_on:
+      postgres:
+        condition: service_healthy
+      localstack:
+        condition: service_healthy
+    networks:
+      - eventpro
+    stdin_open: true
+    tty: true
+
+  # Frontend Development Server - Hot Module Replacement enabled.
+  # Runs from monorepo root so npm workspaces resolve @eventpro/shared (packages/eventpro-shared).
+  frontend:
+    image: node:22-alpine
+    container_name: eventpro-frontend
+    working_dir: /app
+    volumes:
+      - .:/app
+      - frontend_node_modules:/app/node_modules
+      - frontend_workspace_node_modules:/app/eventpro-frontend/node_modules
+    ports:
+      - "5173:5173"
+    environment:
+      # Reliable file watching on Docker bind mounts; helps Vite invalidate optimize deps correctly.
+      - CHOKIDAR_USEPOLLING=true
+      - DOCKER=1
+      # Vite proxy in dev: forward /api to backend (use hostname "backend" from inside Docker)
+      - VITE_PROXY_TARGET=http://backend:8080
+      # Vite reads from process.env (Docker) or .env.local file (when running directly)
+      - VITE_AWS_REGION=us-east-1
+      - VITE_S3_BUCKET_NAME=${S3_BUCKET_NAME:-eventpro-images-local}
+      # Stripe: same publishable key as backend (set STRIPE_PUBLISHABLE_KEY in root .env)
+      - VITE_STRIPE_PUBLISHABLE_KEY=${STRIPE_PUBLISHABLE_KEY:-}
+    # Run Vite directly so --host 0.0.0.0 is passed correctly (npm workspace swallows it otherwise)
+    command: sh -c "npm install && cd eventpro-frontend && npx vite --host 0.0.0.0"
+    # Intentionally no depends_on: backend — otherwise `compose up frontend` blocks while Gradle boots the API.
+    # Start backend separately (or `docker compose up -d`) when you need /api; Vite proxies once it is reachable.
+    networks:
+      - eventpro
+    stdin_open: true
+    tty: true
+
+  # Mobile (Expo) Development Server - Metro bundler + Expo dev server.
+  # Runs from monorepo root so npm workspaces resolve @eventpro/shared.
+  # Connect with Expo Go on device/emulator; use same host IP as EXPO_PUBLIC_API_URL for backend.
+  mobile:
+    image: node:22-alpine
+    container_name: eventpro-mobile
+    working_dir: /app
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - .:/app
+      - mobile_node_modules:/app/node_modules
+      - mobile_workspace_node_modules:/app/eventpro-mobile/node_modules
+    ports:
+      - "8081:8081"   # Metro bundler
+      - "19000:19000" # Expo dev tools
+      - "19001:19001" # Expo legacy
+    environment:
+      # Metro must listen on 0.0.0.0 so host/emulator can connect
+      - REACT_NATIVE_PACKAGER_HOSTNAME=0.0.0.0
+      # Backend API: from device/emulator use host. For Android emulator, host.docker.internal works.
+      # For physical device, set EXPO_PUBLIC_API_URL in eventpro-mobile/.env to your machine IP (e.g. http://192.168.1.x:8080).
+      - EXPO_PUBLIC_API_URL=http://host.docker.internal:8080
+    command: sh -c "npm install && npm run dev:mobile -- --host 0.0.0.0"
+    depends_on:
+      - backend
+    networks:
+      - eventpro
+    stdin_open: true
+    tty: true
+
+  # Note: Lambda functions (order-processor, payment-processor, notification-sender)
+  # are now managed by LocalStack via Terraform. They are automatically triggered
+  # by SQS event source mappings when messages arrive in queues.
+  # See infrastructure/environments/local/main.tf for Lambda configuration.
+
+volumes:
+  postgres_data:
+  localstack_data:
+  gradle_cache:
+  frontend_node_modules:
+  frontend_workspace_node_modules:
+  mobile_node_modules:
+  mobile_workspace_node_modules:
+
+networks:
+  eventpro:
+    driver: bridge

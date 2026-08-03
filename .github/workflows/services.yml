@@ -1,0 +1,156 @@
+name: API
+
+on:
+  push:
+    tags:
+      - 'api-v*.*.*'
+  workflow_dispatch:
+    inputs:
+      workspace:
+        description: 'Workspace to deploy to'
+        required: false
+        default: 'dev'
+        type: string
+      run_deploy:
+        description: 'Run deploy steps (ECR push + Terraform apply)'
+        required: true
+        default: true
+        type: boolean
+      csrf_enabled:
+        description: 'Enable browser CSRF enforcement'
+        required: false
+        default: 'true'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
+  workflow_call:
+    inputs:
+      workspace:
+        description: 'Workspace to deploy to'
+        required: false
+        default: 'dev'
+        type: string
+      run_deploy:
+        description: 'Run deploy steps (ECR push + Terraform apply)'
+        required: false
+        default: true
+        type: boolean
+      csrf_enabled:
+        description: 'Enable browser CSRF enforcement'
+        required: false
+        default: 'true'
+        type: string
+
+env:
+  AWS_REGION: us-east-1
+  DEPLOY_WORKSPACE: ${{ inputs.workspace || github.event.inputs.workspace || 'dev' }}
+
+jobs:
+  services:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: build
+        uses: ./.github/actions/gradle-task
+        with:
+          working-directory: backend/services
+          java-version: '25'
+
+      - name: Resolve image tags
+        id: image-meta
+        uses: ./.github/actions/image-tags
+        with:
+          tag-prefix: api-v
+
+      - name: ecr-docker-build
+        id: ecr-docker-build
+        uses: ./.github/actions/docker
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+          ecr-repository: eventpro-api
+          context: backend
+          dockerfile: backend/services/Dockerfile
+          image-tag: ${{ steps.image-meta.outputs.primary_tag }}
+          image-tags: ${{ steps.image-meta.outputs.all_tags }}
+
+      - name: deploy
+        uses: ./.github/actions/terraform
+        env:
+          TF_VAR_jwt_public_key: ${{ secrets.JWT_PUBLIC_KEY }}
+          TF_VAR_jwt_private_key: ${{ secrets.JWT_PRIVATE_KEY }}
+        with:
+          working-directory: backend/services/terraform
+          workspace: ${{ env.DEPLOY_WORKSPACE }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          variables: |
+            image_registry=${{ steps.ecr-docker-build.outputs.image-registry }}
+            image_name=${{ steps.ecr-docker-build.outputs.image-name }}
+            image_tag=${{ steps.ecr-docker-build.outputs.image-tag }}
+            domain_name=${{ vars.DOMAIN_NAME || secrets.DOMAIN_NAME }}
+            csrf_enabled=${{ inputs.csrf_enabled || github.event.inputs.csrf_enabled || 'true' }}
+            stripe_secret_key=${{ secrets.STRIPE_SECRET_KEY }}
+            stripe_publishable_key=${{ secrets.STRIPE_PUBLISHABLE_KEY }}
+            stripe_webhook_secret=${{ secrets.STRIPE_WEBHOOK_SECRET }}
+            stripe_price_pro_monthly=${{ secrets.STRIPE_PRICE_PRO_MONTHLY }}
+            stripe_price_pro_yearly=${{ secrets.STRIPE_PRICE_PRO_YEARLY }}
+            stripe_price_enterprise_monthly=${{ secrets.STRIPE_PRICE_ENTERPRISE_MONTHLY }}
+            stripe_price_enterprise_yearly=${{ secrets.STRIPE_PRICE_ENTERPRISE_YEARLY }}
+            new_relic_license_key=${{ secrets.NEW_RELIC_LICENSE_KEY }}
+
+      - name: Configure AWS credentials for readiness gates
+        if: always()
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Wait for API stability and verify browser security
+        run: |
+          aws ecs wait services-stable \
+            --cluster "${DEPLOY_WORKSPACE}-cluster" \
+            --services "${DEPLOY_WORKSPACE}-eventpro-api"
+          TARGET_GROUP_ARN=$(aws elbv2 describe-target-groups \
+            --names "${DEPLOY_WORKSPACE}-api-primary" \
+            --query 'TargetGroups[0].TargetGroupArn' --output text)
+          HEALTHY=$(aws elbv2 describe-target-health \
+            --target-group-arn "$TARGET_GROUP_ARN" \
+            --query "length(TargetHealthDescriptions[?TargetHealth.State=='healthy'])" \
+            --output text)
+          test "$HEALTHY" -gt 0
+          for attempt in 1 2 3; do
+            curl --fail --silent --show-error --proto '=https' --tlsv1.2 \
+              "https://${DEPLOY_WORKSPACE}-api.${DOMAIN_NAME}/actuator/health" >/dev/null
+            test "$attempt" -eq 3 || sleep 2
+          done
+          ./scripts/verify-browser-security.sh \
+            --api-url "https://${DEPLOY_WORKSPACE}-api.${DOMAIN_NAME}" \
+            --app-origin "https://${DEPLOY_WORKSPACE}-app.${DOMAIN_NAME}" \
+            --csrf-enabled "${CSRF_ENABLED}"
+        env:
+          DOMAIN_NAME: ${{ vars.DOMAIN_NAME || secrets.DOMAIN_NAME }}
+          CSRF_ENABLED: ${{ inputs.csrf_enabled || github.event.inputs.csrf_enabled || 'true' }}
+
+      - name: Capture rollout diagnostics on failure
+        if: failure()
+        run: |
+          aws ecs describe-services \
+            --cluster "${DEPLOY_WORKSPACE}-cluster" \
+            --services "${DEPLOY_WORKSPACE}-eventpro-api" \
+            --query 'services[0].{desired:desiredCount,running:runningCount,pending:pendingCount,deployments:deployments,events:events[0:10]}' \
+            --output json || true
+          TARGET_GROUP_ARN=$(aws elbv2 describe-target-groups \
+            --names "${DEPLOY_WORKSPACE}-api-primary" \
+            --query 'TargetGroups[0].TargetGroupArn' --output text 2>/dev/null || true)
+          if [ -n "$TARGET_GROUP_ARN" ] && [ "$TARGET_GROUP_ARN" != "None" ]; then
+            aws elbv2 describe-target-health --target-group-arn "$TARGET_GROUP_ARN" --output json || true
+          fi
+          aws logs tail "/ecs/${DEPLOY_WORKSPACE}/eventpro-api" --since 30m --format short 2>&1 \
+            | tail -100 \
+            | sed -E 's/((Bearer|token|cookie|password|secret)[=: ]+)[^ ,;]+/\1[REDACTED]/Ig' || true

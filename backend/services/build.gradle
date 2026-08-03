@@ -1,0 +1,155 @@
+plugins {
+    id 'java'
+    id 'org.springframework.boot' version '4.0.0' apply false
+    id 'io.spring.dependency-management' version '1.1.7' apply false
+    id 'jacoco'
+}
+
+allprojects {
+    group = 'com.accessplus.eventpro'
+    version = '1.0.0'
+    
+    repositories {
+        mavenCentral()
+        maven { url 'https://repo.spring.io/milestone' }
+    }
+}
+
+subprojects {
+    apply plugin: 'java'
+    apply plugin: 'io.spring.dependency-management'
+    apply plugin: 'jacoco'
+    
+    // Java 25 configuration
+    java {
+        sourceCompatibility = JavaVersion.VERSION_25
+        targetCompatibility = JavaVersion.VERSION_25
+    }
+    
+    // Common dependency management
+    dependencyManagement {
+        imports {
+            mavenBom 'org.springframework.boot:spring-boot-dependencies:4.0.0'
+            mavenBom 'io.github.resilience4j:resilience4j-bom:2.3.0'
+        }
+    }
+    
+    // Common configurations
+    configurations {
+        compileOnly {
+            extendsFrom annotationProcessor
+        }
+    }
+    
+    // Common test configuration
+    tasks.named('test') {
+        useJUnitPlatform()
+        finalizedBy jacocoTestReport
+        
+        // Generate HTML test reports
+        reports {
+            html.required = true
+            junitXml.required = true
+        }
+        
+        // Show test output in console
+        testLogging {
+            events "passed", "skipped", "failed"
+            exceptionFormat "full"
+            showStandardStreams = false
+        }
+    }
+
+    jacocoTestReport {
+        dependsOn test
+        reports {
+            xml.required = true
+            html.required = true
+        }
+    }
+    
+    // Task to print test report locations
+    tasks.register('printTestReportLocation') {
+        dependsOn test
+        doLast {
+            def testReportDir = file("${project.buildDir}/reports/tests/test")
+            def jacocoReportDir = file("${project.buildDir}/reports/jacoco/test/html")
+            
+            if (testReportDir.exists()) {
+                println "\n" + "="*80
+                println "TEST REPORTS GENERATED"
+                println "="*80
+                println "Module: ${project.name}"
+                println "Test Report (HTML): ${testReportDir}/index.html"
+                if (jacocoReportDir.exists()) {
+                    println "Code Coverage Report (HTML): ${jacocoReportDir}/index.html"
+                }
+                println "="*80 + "\n"
+            }
+        }
+    }
+    
+    // Common dependency versions
+    ext {
+        awsSdkVersion = '2.38.7'
+        lombokVersion = '1.18.42'
+        postgresqlVersion = '42.7.6'
+        jjwtVersion = '0.12.6'
+    }
+}
+
+// Root-level task to show all test reports
+tasks.register('showTestReports') {
+    description = 'Shows locations of all test reports across all modules'
+    group = 'verification'
+    
+    doLast {
+        println "\n" + "="*80
+        println "ALL TEST REPORTS"
+        println "="*80
+        
+        subprojects.each { project ->
+            def testReportDir = file("${project.buildDir}/reports/tests/test")
+            def jacocoReportDir = file("${project.buildDir}/reports/jacoco/test/html")
+            
+            if (testReportDir.exists()) {
+                println "\nModule: ${project.name}"
+                println "  Test Report (HTML): ${testReportDir}/index.html"
+                if (jacocoReportDir.exists()) {
+                    println "  Code Coverage Report (HTML): ${jacocoReportDir}/index.html"
+                }
+            }
+        }
+        
+        println "\n" + "="*80
+        println "To view reports, open the HTML files in your browser"
+        println "="*80 + "\n"
+    }
+}
+
+// Note: showTestReports is available as a standalone task
+// Run './gradlew showTestReports' to see all test report locations
+
+// Root-level aggregated JaCoCo coverage report for GitLab CI
+tasks.register('jacocoRootReport', org.gradle.testing.jacoco.tasks.JacocoReport) {
+    description = 'Aggregates JaCoCo coverage reports from all subprojects'
+    group = 'verification'
+    dependsOn subprojects.test
+    
+    reports {
+        xml.required = true
+        xml.outputLocation = layout.buildDirectory.file("reports/jacoco/root/jacocoRootReport.xml")
+        html.required = true
+        html.outputLocation = layout.buildDirectory.dir("reports/jacoco/root/html")
+    }
+    
+    // Collect execution data from all subprojects
+    executionData.setFrom(files(subprojects.jacocoTestReport.executionData).filter { it.exists() })
+    
+    // Collect source files from all subprojects
+    sourceDirectories.setFrom(files(subprojects.sourceSets.main.allSource.srcDirs))
+    
+    // Collect class files from all subprojects
+    classDirectories.setFrom(files(subprojects.sourceSets.main.output).filter { it.exists() })
+}
+
