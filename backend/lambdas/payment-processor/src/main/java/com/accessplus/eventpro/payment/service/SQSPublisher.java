@@ -15,11 +15,12 @@ public class SQSPublisher {
 
     private final SqsClient sqsClient;
     private final SQSConfig sqsConfig;
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final ObjectMapper objectMapper;
 
-    public SQSPublisher(SqsClient sqsClient, SQSConfig sqsConfig) {
+    public SQSPublisher(SqsClient sqsClient, SQSConfig sqsConfig, ObjectMapper objectMapper) {
         this.sqsClient = sqsClient;
         this.sqsConfig = sqsConfig;
+        this.objectMapper = objectMapper;
     }
 
     public void publishNotificationMessage(Object message) {

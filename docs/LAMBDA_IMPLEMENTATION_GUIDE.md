@@ -255,7 +255,7 @@ Each category was scored 1-10, with the winner determined by weighted total poin
    - Use Quarkus 3.26.2+
    - Native compilation for production
    - SQS event source integration
-   - AWS SES/SNS integration
+   - Resend email and AWS SNS integration
 
 #### Migration Strategy:
 
@@ -940,4 +940,3 @@ For detailed instructions, refer to the collapsible sections above:
 - **Section 2**: Quick setup summary
 - **Section 3**: Detailed deployment guide
 - **Section 4**: Next steps and checklist
-

@@ -1,12 +1,14 @@
 package com.accessplus.eventpro.shared.model;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
 public class NotificationMessage {
+
+    @JsonProperty("schemaVersion")
+    private int schemaVersion = 2;
 
     @JsonProperty("messageId")
     private UUID messageId;
@@ -15,7 +17,7 @@ public class NotificationMessage {
     private String messageType;
 
     @JsonProperty("timestamp")
-    private LocalDateTime timestamp;
+    private String timestamp;
 
     @JsonProperty("source")
     private String source;
@@ -23,12 +25,14 @@ public class NotificationMessage {
     @JsonProperty("payload")
     private NotificationPayload payload;
 
+    public int getSchemaVersion() { return schemaVersion; }
+    public void setSchemaVersion(int schemaVersion) { this.schemaVersion = schemaVersion; }
     public UUID getMessageId() { return messageId; }
     public void setMessageId(UUID messageId) { this.messageId = messageId; }
     public String getMessageType() { return messageType; }
     public void setMessageType(String messageType) { this.messageType = messageType; }
-    public LocalDateTime getTimestamp() { return timestamp; }
-    public void setTimestamp(LocalDateTime timestamp) { this.timestamp = timestamp; }
+    public String getTimestamp() { return timestamp; }
+    public void setTimestamp(String timestamp) { this.timestamp = timestamp; }
     public String getSource() { return source; }
     public void setSource(String source) { this.source = source; }
     public NotificationPayload getPayload() { return payload; }

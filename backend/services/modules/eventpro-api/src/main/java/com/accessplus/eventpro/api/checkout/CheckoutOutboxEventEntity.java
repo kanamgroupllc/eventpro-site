@@ -16,5 +16,6 @@ public class CheckoutOutboxEventEntity extends BaseEntity {
     @Column(name = "status", nullable = false, length = 20) private String status = "PENDING";
     @Column(name = "attempts", nullable = false) private int attempts;
     @Column(name = "next_attempt_at", nullable = false) private LocalDateTime nextAttemptAt;
+    @Column(name = "lease_until") private LocalDateTime leaseUntil;
     @Column(name = "last_error", length = 1000) private String lastError;
 }

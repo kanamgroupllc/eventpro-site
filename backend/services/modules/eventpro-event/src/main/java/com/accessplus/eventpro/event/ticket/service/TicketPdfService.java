@@ -7,5 +7,6 @@ import java.io.IOException;
 public interface TicketPdfService {
     
     byte[] generateTicketPdf(TicketEntity ticket) throws IOException;
-}
 
+    byte[] generateTicketPdf(TicketEntity ticket, String attendeeName, String orderNumber) throws IOException;
+}

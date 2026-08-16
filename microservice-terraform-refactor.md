@@ -206,7 +206,7 @@ Use `terraform workspace select <env>` (or `terraform workspace new <env>`) to d
 - **ALB** – `aws_lb`, `aws_lb_listener`, `aws_lb_target_group`
 - **ECS** – `aws_ecs_cluster`, `aws_ecs_service`, `aws_ecs_task_definition` using default VPC subnets
 - **Route53** – `aws_route53_record` for `${terraform.workspace}-api.${var.domain_name}` as alias to ALB (workspace in subdomain to avoid clashes)
-- **IAM** – Task role with policies for SQS, S3 (images bucket), Secrets Manager, SES, SNS
+- **IAM** – Task role with policies for SQS, S3 (images bucket), Secrets Manager, and SNS
 - **Security groups** – RDS, ECS, ALB (in default VPC)
 
 **Workspace**: Resource names `${terraform.workspace}-<name>`; tags `Env = terraform.workspace` on all resources.
@@ -347,13 +347,13 @@ Lambda expects all database and queue connection information via environment var
 **Resources** (inline `resource` blocks—no modules):
 
 - `aws_lambda_function` (container image) with `aws_lambda_event_source_mapping` from notification queue
-- `aws_iam_role` for VPC (default), SQS, Secrets Manager, SES, SNS
+- `aws_iam_role` for VPC (default), SQS, Secrets Manager, S3, DynamoDB, and SNS
 
 **Environment variables** (injected from services Terraform outputs):
 
 - `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_SECRET_ARN`, `AWS_REGION`
 - `NOTIFICATION_QUEUE_URL`
-- `SES_SENDER_EMAIL`
+- `RESEND_API_KEY_SECRET_ARN`, `RESEND_FROM`, `RESEND_REPLY_TO`
 
 Lambda expects all database and queue connection information via environment variables.
 

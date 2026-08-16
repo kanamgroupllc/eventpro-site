@@ -28,7 +28,7 @@ public interface OrganizerService {
      * Sends an email to all attendees of an event (Pro and Enterprise only).
      * Caller must verify organizer tier before invoking.
      *
-     * @return number of recipients the email was sent to
+     * @return number of recipient messages accepted by the notification queue
      */
     int emailEventAttendees(UUID eventId, UUID organizerId, String subject, String body);
 
@@ -54,4 +54,3 @@ public interface OrganizerService {
      */
     java.math.BigDecimal getOrganizerSubscriptionPaymentsForYear(UUID organizerId, int year);
 }
-

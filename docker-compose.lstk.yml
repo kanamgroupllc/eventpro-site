@@ -16,7 +16,7 @@ services:
       DNS_RESOLVE_IP: ${DNS_RESOLVE_IP:-127.0.0.1}
       EXTERNAL_SERVICE_PORTS_START: ${EXTERNAL_SERVICE_PORTS_START:-4510}
       EXTERNAL_SERVICE_PORTS_END: ${EXTERNAL_SERVICE_PORTS_END:-4559}
-      SERVICES: ${LOCALSTACK_SERVICES:-account,acm,apigateway,application-autoscaling,backup,cloudformation,cloudfront,cloudwatch,cognito-idp,cognito-identity,cloudcontrol,dynamodb,ec2,ecr,ecs,eks,efs,elasticache,elb,elbv2,events,iam,kafka,kinesis,kms,lambda,logs,mq,opensearch,pipes,rds,route53,s3,secretsmanager,ses,sesv2,sns,sqs,ssm,stepfunctions,sts}
+      SERVICES: ${LOCALSTACK_SERVICES:-account,acm,apigateway,application-autoscaling,backup,cloudformation,cloudfront,cloudwatch,cognito-idp,cognito-identity,cloudcontrol,dynamodb,ec2,ecr,ecs,eks,efs,elasticache,elb,elbv2,events,iam,kafka,kinesis,kms,lambda,logs,mq,opensearch,pipes,rds,route53,s3,secretsmanager,sns,sqs,ssm,stepfunctions,sts}
       PERSISTENCE: ${LOCALSTACK_PERSISTENCE:-1}
       DEBUG: ${LOCALSTACK_DEBUG:-0}
       DOCKER_HOST: unix:///var/run/docker.sock

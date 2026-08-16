@@ -70,7 +70,7 @@ These match `eventpro-frontend/src/pages/Pricing.tsx`. All implementation and ga
    - **Gating:** Available to all plans (Basic + Pro + Enterprise).
 
 2. **Organizer CRM – email attendees (Pro + Enterprise)**  
-   - “Email attendees” from organizer event/attendees view; send via platform (e.g. SendGrid/SES).  
+   - “Email attendees” from organizer event/attendees view; send through Resend.
    - **Gating:** Only for Pro and Enterprise; hide or disable for Basic.
 
 3. **Risk scoring (backend for payouts)**  

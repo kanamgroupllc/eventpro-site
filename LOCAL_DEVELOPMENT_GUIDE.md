@@ -1612,7 +1612,7 @@ Switching notes:
 - Prefer `make aws-plan` / `make aws-deploy` and `make lstk-*` instead of invoking Terraform manually.
 - Every path runs `terraform init -reconfigure`; never accept a state migration prompt when switching targets.
 - LocalStack forces mock credentials and account `000000000000`; AWS refuses that identity and optionally verifies `AWS_ACCOUNT_ID`.
-- LocalStack disables New Relic and uses non-live Stripe sentinel values. Verification never calls live Stripe, SES, or SNS.
+- LocalStack disables New Relic, captures email locally, and uses non-live Stripe sentinel values. Verification never calls live Stripe, Resend, or SNS.
 
 Full runbook: `docs/TERRAFORM_DEPLOY_TARGETS.md`.
 
@@ -1804,7 +1804,7 @@ export NOTIFICATION_SENDER_IMAGE_TAG=sha-123456789012
 Notes:
 - Lambdas read queues, database outputs, subnets, and security groups from `shared-infra/terraform.tfstate`.
 - `payment-processor` requires `STRIPE_SECRET_KEY`.
-- `notification-sender` uses `SES_SENDER_EMAIL` when set.
+- `notification-sender` captures email with `EMAIL_PROVIDER=log`; production uses `RESEND_API_KEY_SECRET_ARN`.
 - `--lambdas` accepts: `order-processor`, `payment-processor`, `notification-sender`.
 - In **build** mode, `--image-tag` (or per-lambda `--*-image-tag`) supplies the tag used for the Docker build and for Terraform. If you have a local `backend/lambdas/*/terraform/terraform.tfvars` (often gitignored) with placeholders such as `image_tag = "REPLACE_ME"`, that file used to override `TF_VAR_*` and could break deploys; the script now passes matching values via `terraform plan` / `apply` **`-var=...`**, which takes precedence over `terraform.tfvars`.
 

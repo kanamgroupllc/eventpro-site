@@ -9,9 +9,8 @@ version = '0.0.1-SNAPSHOT'
 description = 'notification-sender'
 
 java {
-    toolchain {
-        languageVersion = JavaLanguageVersion.of(21)
-    }
+    sourceCompatibility = JavaVersion.VERSION_21
+    targetCompatibility = JavaVersion.VERSION_21
 }
 
 configurations {
@@ -36,8 +35,10 @@ dependencies {
     implementation 'com.amazonaws:aws-lambda-java-events:3.11.3'
     implementation 'com.amazonaws:aws-lambda-java-core:1.2.3'
     implementation platform("software.amazon.awssdk:bom:${awsSdkVersion}")
-    implementation 'software.amazon.awssdk:ses'
     implementation 'software.amazon.awssdk:sns'
+    implementation 'software.amazon.awssdk:s3'
+    implementation 'software.amazon.awssdk:secretsmanager'
+    implementation 'software.amazon.awssdk:dynamodb'
     compileOnly 'org.projectlombok:lombok'
     annotationProcessor 'org.projectlombok:lombok'
     testImplementation 'org.springframework.boot:spring-boot-starter-test'

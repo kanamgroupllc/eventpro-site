@@ -17,8 +17,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
-import java.util.Arrays;
+import java.time.Instant;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -33,16 +32,18 @@ public class PaymentProcessorService {
     private final TicketRepository ticketRepository;
     private final StripeService stripeService;
     private final SQSPublisher sqsPublisher;
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final ObjectMapper objectMapper;
 
     public PaymentProcessorService(OrderRepository orderRepository,
                                    TicketRepository ticketRepository,
                                    StripeService stripeService,
-                                   SQSPublisher sqsPublisher) {
+                                   SQSPublisher sqsPublisher,
+                                   ObjectMapper objectMapper) {
         this.orderRepository = orderRepository;
         this.ticketRepository = ticketRepository;
         this.stripeService = stripeService;
         this.sqsPublisher = sqsPublisher;
+        this.objectMapper = objectMapper;
     }
 
     @Transactional
@@ -176,16 +177,19 @@ public class PaymentProcessorService {
 
     private NotificationMessage createNotificationMessage(OrderEntity order, NotificationType messageType) {
         NotificationMessage message = new NotificationMessage();
+        message.setSchemaVersion(2);
         message.setMessageId(UUID.randomUUID());
         message.setMessageType(messageType.name());
-        message.setTimestamp(LocalDateTime.now());
+        message.setTimestamp(Instant.now().toString());
         message.setSource("payment-processor");
 
         NotificationMessage.NotificationPayload payload = new NotificationMessage.NotificationPayload();
         payload.setUserId(order.getUserId());
         payload.setOrderId(order.getId());
         payload.setOrderNumber(order.getOrderNumber());
-        payload.setDeliveryTypes(Arrays.asList("EMAIL", "SMS", "IN_APP"));
+        // This retained legacy processor has no recipient contact data. Ticket email is
+        // emitted by the checkout outbox, while this message preserves in-app status.
+        payload.setDeliveryTypes(List.of("IN_APP"));
 
         Map<String, Object> templateData = new HashMap<>();
         templateData.put("orderNumber", order.getOrderNumber());

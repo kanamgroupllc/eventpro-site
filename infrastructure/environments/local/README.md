@@ -57,8 +57,8 @@ This configuration creates the following resources in LocalStack:
 ### S3 Buckets
 - `eventpro-images-local` - Event images storage (with CORS enabled for localhost)
 
-### SES (Email)
-- Verified sender identity: `noreply@eventpro.com` (for order confirmation and other emails)
+### Email capture
+- Notification sender logs email metadata locally; no external provider is called.
 
 ### Secrets Manager
 - `eventpro-db-secret` - Database credentials
@@ -101,7 +101,7 @@ The application should use these LocalStack endpoints:
 
 - **SQS**: `http://localhost:4566`
 - **S3**: `http://localhost:4566`
-- **SES**: `http://localhost:4566`
+- **Email**: captured by notification-sender with `EMAIL_PROVIDER=log`
 - **Secrets Manager**: `http://localhost:4566`
 
 ### Application Configuration
@@ -237,4 +237,3 @@ After provisioning, update your application environment:
 3. Start backend with `SPRING_PROFILES_ACTIVE=local`
 4. Start frontend with `.env.local` configured
 5. Test the complete setup
-

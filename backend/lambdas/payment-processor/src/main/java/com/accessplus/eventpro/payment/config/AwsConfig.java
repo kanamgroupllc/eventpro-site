@@ -1,5 +1,6 @@
 package com.accessplus.eventpro.payment.config;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -19,6 +20,11 @@ public class AwsConfig {
 
     @Value("${AWS_ENDPOINT_URL:}")
     private String awsEndpointUrl;
+
+    @Bean
+    public ObjectMapper objectMapper() {
+        return new ObjectMapper().findAndRegisterModules();
+    }
 
     @Bean
     public SqsClient sqsClient() {

@@ -46,6 +46,11 @@ output "sqs_notification_queue_dlq_url" {
   value       = aws_sqs_queue.notification_queue_dlq.url
 }
 
+output "sqs_notification_queue_dlq_arn" {
+  description = "SQS Notification Queue Dead Letter Queue ARN"
+  value       = aws_sqs_queue.notification_queue_dlq.arn
+}
+
 output "s3_images_bucket_name" {
   description = "S3 Images Bucket Name"
   value       = aws_s3_bucket.images.id

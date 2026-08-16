@@ -15,10 +15,28 @@ variable "image_tag" {
   type        = string
 }
 
-variable "ses_sender_email" {
-  description = "SES verified sender email address"
+variable "email_provider" {
+  description = "Email provider: resend in AWS, log for local capture"
   type        = string
-  default     = "noreply@eventpro.com"
+  default     = "resend"
+}
+
+variable "resend_api_key_secret_arn" {
+  description = "ARN of a Secrets Manager secret containing JSON field apiKey"
+  type        = string
+  default     = ""
+}
+
+variable "resend_from" {
+  description = "Verified Resend sender"
+  type        = string
+  default     = "Abcham <noreply@mail.abcham.com>"
+}
+
+variable "resend_reply_to" {
+  description = "Default Reply-To address"
+  type        = string
+  default     = "kanamgroupllc@gmail.com"
 }
 
 variable "aws_region" {

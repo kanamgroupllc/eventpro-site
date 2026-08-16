@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://abcham.com/contracts/notification-message-v2.schema.json",
+  "title": "EventPro notification envelope v2",
+  "type": "object",
+  "required": ["schemaVersion", "messageId", "messageType", "timestamp", "source", "payload"],
+  "properties": {
+    "schemaVersion": { "const": 2 },
+    "messageId": { "type": "string", "format": "uuid" },
+    "messageType": { "type": "string", "minLength": 1 },
+    "timestamp": { "type": "string", "format": "date-time" },
+    "source": { "type": "string", "minLength": 1 },
+    "payload": {
+      "type": "object",
+      "properties": {
+        "userId": { "type": ["string", "null"], "format": "uuid" },
+        "orderId": { "type": ["string", "null"], "format": "uuid" },
+        "orderNumber": { "type": ["string", "null"] },
+        "deliveryTypes": { "type": "array", "items": { "enum": ["EMAIL", "SMS", "IN_APP", "PUSH"] } },
+        "email": { "type": ["string", "null"], "format": "email" },
+        "phoneNumber": { "type": ["string", "null"] },
+        "manifestKey": { "type": ["string", "null"], "pattern": "^ticket-artifacts/" },
+        "subject": { "type": ["string", "null"] },
+        "textBody": { "type": ["string", "null"] },
+        "replyTo": { "type": ["string", "null"], "format": "email" },
+        "templateData": { "type": ["object", "null"] }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

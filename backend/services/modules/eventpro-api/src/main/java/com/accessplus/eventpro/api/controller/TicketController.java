@@ -7,6 +7,7 @@ import com.accessplus.eventpro.api.dto.TicketCreateRequest;
 import com.accessplus.eventpro.api.dto.TicketInfo;
 import com.accessplus.eventpro.api.dto.TicketResponse;
 import com.accessplus.eventpro.api.dto.TicketUpdateRequest;
+import com.accessplus.eventpro.api.checkout.TicketArtifactService;
 import com.accessplus.eventpro.shared.exception.ValidationException;
 import com.accessplus.eventpro.core.security.JwtUtils;
 import com.accessplus.eventpro.core.user.service.UserService;
@@ -15,7 +16,6 @@ import com.accessplus.eventpro.event.event.repository.EventRepository;
 import com.accessplus.eventpro.shared.entity.TicketEntity;
 import com.accessplus.eventpro.shared.enums.TicketType;
 import com.accessplus.eventpro.event.ticket.service.TicketService;
-import com.accessplus.eventpro.event.ticket.service.TicketPdfService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -50,7 +50,7 @@ public class TicketController extends BaseController {
     private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ISO_LOCAL_DATE_TIME;
 
     private final TicketService ticketService;
-    private final TicketPdfService ticketPdfService;
+    private final TicketArtifactService ticketArtifactService;
     private final EventRepository eventRepository;
     private final UserService userService;
 
@@ -143,8 +143,7 @@ public class TicketController extends BaseController {
         }
 
         try {
-            // Generate PDF
-            byte[] pdfBytes = ticketPdfService.generateTicketPdf(ticket);
+            byte[] pdfBytes = ticketArtifactService.getOrCreatePdf(id);
 
             // Set response headers
             HttpHeaders headers = new HttpHeaders();
@@ -160,6 +159,24 @@ public class TicketController extends BaseController {
         } catch (IOException e) {
             log.error("Failed to generate PDF ticket: ticketId={}, error={}", id, e.getMessage(), e);
             throw new com.accessplus.eventpro.shared.exception.ValidationException("Failed to generate PDF: " + e.getMessage());
+        }
+    }
+
+    @GetMapping(value = "/{id}/qr", produces = MediaType.IMAGE_PNG_VALUE)
+    @PreAuthorize("hasAnyRole('USER', 'ADMIN', 'ORGANIZER')")
+    @Operation(summary = "Get ticket QR code", description = "Returns the real ticket QR code for its purchaser or an admin.")
+    @SecurityRequirement(name = "bearerAuth")
+    public ResponseEntity<byte[]> ticketQr(@PathVariable UUID id) {
+        TicketEntity ticket = ticketService.getTicketById(id);
+        UUID currentUserId = JwtUtils.getCurrentUserId();
+        if (!hasAdminRole() && (ticket.getPurchaserId() == null || !ticket.getPurchaserId().equals(currentUserId))) {
+            throw new com.accessplus.eventpro.shared.exception.ResourceNotFoundException("Ticket", id.toString());
+        }
+        try {
+            byte[] qr = ticketArtifactService.generateQr(id);
+            return ResponseEntity.ok().contentType(MediaType.IMAGE_PNG).contentLength(qr.length).body(qr);
+        } catch (IOException error) {
+            throw new ValidationException("Failed to generate ticket QR code");
         }
     }
 

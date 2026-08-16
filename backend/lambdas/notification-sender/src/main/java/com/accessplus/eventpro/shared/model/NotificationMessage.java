@@ -2,12 +2,14 @@ package com.accessplus.eventpro.shared.model;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
 public class NotificationMessage {
+
+    @JsonProperty("schemaVersion")
+    private int schemaVersion = 1;
 
     @JsonProperty("messageId")
     private UUID messageId;
@@ -16,7 +18,7 @@ public class NotificationMessage {
     private String messageType;
 
     @JsonProperty("timestamp")
-    private LocalDateTime timestamp;
+    private String timestamp;
 
     @JsonProperty("source")
     private String source;
@@ -24,12 +26,14 @@ public class NotificationMessage {
     @JsonProperty("payload")
     private NotificationPayload payload;
 
+    public int getSchemaVersion() { return schemaVersion; }
+    public void setSchemaVersion(int schemaVersion) { this.schemaVersion = schemaVersion; }
     public UUID getMessageId() { return messageId; }
     public void setMessageId(UUID messageId) { this.messageId = messageId; }
     public String getMessageType() { return messageType; }
     public void setMessageType(String messageType) { this.messageType = messageType; }
-    public LocalDateTime getTimestamp() { return timestamp; }
-    public void setTimestamp(LocalDateTime timestamp) { this.timestamp = timestamp; }
+    public String getTimestamp() { return timestamp; }
+    public void setTimestamp(String timestamp) { this.timestamp = timestamp; }
     public String getSource() { return source; }
     public void setSource(String source) { this.source = source; }
     public NotificationPayload getPayload() { return payload; }
@@ -43,6 +47,10 @@ public class NotificationMessage {
         @JsonProperty("email") private String email;
         @JsonProperty("phoneNumber") private String phoneNumber;
         @JsonProperty("templateData") private Map<String, Object> templateData;
+        @JsonProperty("manifestKey") private String manifestKey;
+        @JsonProperty("subject") private String subject;
+        @JsonProperty("textBody") private String textBody;
+        @JsonProperty("replyTo") private String replyTo;
 
         public UUID getUserId() { return userId; }
         public void setUserId(UUID userId) { this.userId = userId; }
@@ -58,5 +66,13 @@ public class NotificationMessage {
         public void setPhoneNumber(String phoneNumber) { this.phoneNumber = phoneNumber; }
         public Map<String, Object> getTemplateData() { return templateData; }
         public void setTemplateData(Map<String, Object> templateData) { this.templateData = templateData; }
+        public String getManifestKey() { return manifestKey; }
+        public void setManifestKey(String manifestKey) { this.manifestKey = manifestKey; }
+        public String getSubject() { return subject; }
+        public void setSubject(String subject) { this.subject = subject; }
+        public String getTextBody() { return textBody; }
+        public void setTextBody(String textBody) { this.textBody = textBody; }
+        public String getReplyTo() { return replyTo; }
+        public void setReplyTo(String replyTo) { this.replyTo = replyTo; }
     }
 }

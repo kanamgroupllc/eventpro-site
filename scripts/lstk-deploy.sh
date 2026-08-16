@@ -237,7 +237,7 @@ export TF_VAR_jwt_private_key="${JWT_PRIVATE_KEY:-}"
 export TF_VAR_stripe_secret_key="${STRIPE_SECRET_KEY:-sk_test_local}"
 export TF_VAR_stripe_publishable_key="${STRIPE_PUBLISHABLE_KEY:-pk_test_local}"
 export TF_VAR_stripe_webhook_secret="${STRIPE_WEBHOOK_SECRET:-whsec_test_local}"
-export TF_VAR_ses_sender_email="noreply@eventpro.local"
+export TF_VAR_email_provider="log"
 export TF_VAR_new_relic_license_key=""
 export TF_VAR_new_relic_account_id=""
 
@@ -405,7 +405,7 @@ write_localstack_runtime_tfvars() {
         --arg image_name "${TF_VAR_image_name:?LocalStack image name is not configured}" \
         --arg image_tag "${TF_VAR_image_tag:?LocalStack image tag is not configured}" \
         '{image_registry: $image_registry, image_name: $image_name, image_tag: $image_tag,
-          ses_sender_email: "noreply@eventpro.local", new_relic_license_key: "", new_relic_account_id: ""}' >"$file"
+          email_provider: "log", new_relic_license_key: "", new_relic_account_id: ""}' >"$file"
       ;;
   esac
 }

@@ -7,6 +7,33 @@ resource "aws_cloudwatch_log_group" "api" {
   tags = merge(local.common_tags, { Name = "${local.name_prefix}-eventpro-api-logs" })
 }
 
+resource "aws_cloudwatch_log_metric_filter" "checkout_outbox_failed" {
+  name           = "${local.name_prefix}-checkout-outbox-failed"
+  log_group_name = aws_cloudwatch_log_group.api.name
+  pattern        = "\"Checkout outbox event permanently failed\""
+
+  metric_transformation {
+    name      = "CheckoutOutboxPermanentFailures"
+    namespace = "EventPro/Checkout"
+    value     = "1"
+  }
+}
+
+resource "aws_cloudwatch_metric_alarm" "checkout_outbox_failed" {
+  alarm_name          = "${local.name_prefix}-checkout-outbox-failed"
+  alarm_description   = "A paid checkout artifact or notification outbox event failed permanently"
+  namespace           = "EventPro/Checkout"
+  metric_name         = "CheckoutOutboxPermanentFailures"
+  statistic           = "Sum"
+  period              = 300
+  evaluation_periods  = 1
+  comparison_operator = "GreaterThanThreshold"
+  threshold           = 0
+  treat_missing_data  = "notBreaching"
+
+  tags = local.common_tags
+}
+
 resource "aws_ecs_cluster" "main" {
   name = "${local.name_prefix}-cluster"
 
@@ -39,7 +66,7 @@ resource "aws_iam_role_policy_attachment" "ecs_execution" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
 }
 
-# ECS Task Role (SQS, S3, Secrets Manager, SES, SNS)
+# ECS Task Role (SQS, S3, Secrets Manager, SNS)
 resource "aws_iam_role" "ecs_task" {
   name = "${local.name_prefix}-eventpro-api-task-role"
 
@@ -75,11 +102,6 @@ resource "aws_iam_role_policy" "ecs_task" {
         Effect   = "Allow"
         Action   = ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"]
         Resource = "${data.terraform_remote_state.shared_infra.outputs.s3_images_bucket_arn}/*"
-      },
-      {
-        Effect   = "Allow"
-        Action   = ["ses:SendEmail", "ses:SendRawEmail"]
-        Resource = "*"
       },
       {
         Effect   = "Allow"
@@ -147,7 +169,6 @@ resource "aws_ecs_task_definition" "api" {
         { name = "AWS_S3_PUBLIC_ENDPOINT", value = "https://localhost.localstack.cloud:4566" },
         { name = "AWS_SECRETS_MANAGER_ENDPOINT", value = var.localstack_runtime_endpoint },
         { name = "SQS_ENDPOINT", value = var.localstack_runtime_endpoint },
-        { name = "SES_ENDPOINT", value = var.localstack_runtime_endpoint },
         { name = "NEW_RELIC_AGENT_ENABLED", value = "false" },
         { name = "SPRING_JPA_HIBERNATE_DDL_AUTO", value = "none" },
         { name = "SPRING_JPA_PROPERTIES_HIBERNATE_BOOT_ALLOW_JDBC_METADATA_ACCESS", value = "false" },
