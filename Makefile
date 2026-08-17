@@ -20,7 +20,7 @@ TF_ENV_FILE ?= .env.remote
 TF_STATE_BUCKET ?= eventpro-site-state
 TF_STATE_REGION ?= us-east-1
 LSTK_ENV_FILE ?= .env.lstk
-LSTK_SECRET_ENV_FILE ?= .env.remote
+LSTK_SECRET_ENV_FILE ?= .env.lstk.secrets
 LSTK_COMPOSE_FILE ?= docker-compose.lstk.yml
 LSTK_WORKSPACE ?= lstk
 LSTK_TF_ACTION ?= plan
@@ -119,7 +119,7 @@ help:
 	@echo "  make tf-destroy-all                 - Destroy frontend, lambdas, services, then shared infra"
 	@echo "  make tf-destroy                     - Same as tf-destroy-all (AWS bill cleanup)"
 	@echo ""
-	@echo "Complete LocalStack Pro Terraform (set LSTK_TF_ACTION=plan|apply|destroy, default plan; test secrets load from LSTK_SECRET_ENV_FILE=.env.remote):"
+	@echo "Complete LocalStack Pro Terraform (set LSTK_TF_ACTION=plan|apply|destroy, default plan; test secrets load from LSTK_SECRET_ENV_FILE=.env.lstk.secrets):"
 	@echo "  make lstk-init                      - Create local config/JWT keys and bootstrap LocalStack"
 	@echo "  make lstk-plan                      - Plan all available LocalStack stacks"
 	@echo "  make lstk-deploy                    - Deploy and verify the complete LocalStack environment"

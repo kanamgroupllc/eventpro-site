@@ -117,6 +117,7 @@ vite.config.*.timestamp-*
 .env.example
 .env.remote
 .env.lstk
+.env.lstk.secrets
 .env.stripe
 .env.example
 .env.backup

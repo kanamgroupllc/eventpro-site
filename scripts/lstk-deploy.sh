@@ -27,6 +27,8 @@ FRONTEND_INVALIDATE=true
 INHERITED_STRIPE_SECRET_KEY="${STRIPE_SECRET_KEY:-}"
 INHERITED_STRIPE_PUBLISHABLE_KEY="${STRIPE_PUBLISHABLE_KEY:-}"
 INHERITED_STRIPE_WEBHOOK_SECRET="${STRIPE_WEBHOOK_SECRET:-}"
+INHERITED_EMAIL_PROVIDER="${EMAIL_PROVIDER:-}"
+INHERITED_RESEND_API_KEY="${RESEND_API_KEY:-}"
 
 STATE_BUCKET="eventpro-site-state"
 AWS_REGION_LOCAL="us-east-1"
@@ -178,6 +180,12 @@ fi
 if [ -n "$INHERITED_STRIPE_WEBHOOK_SECRET" ]; then
   export STRIPE_WEBHOOK_SECRET="$INHERITED_STRIPE_WEBHOOK_SECRET"
 fi
+if [ -n "$INHERITED_EMAIL_PROVIDER" ]; then
+  export EMAIL_PROVIDER="$INHERITED_EMAIL_PROVIDER"
+fi
+if [ -n "$INHERITED_RESEND_API_KEY" ]; then
+  export RESEND_API_KEY="$INHERITED_RESEND_API_KEY"
+fi
 
 validate_localstack_stripe() {
   case "${STRIPE_SECRET_KEY:-}" in
@@ -237,12 +245,48 @@ export TF_VAR_jwt_private_key="${JWT_PRIVATE_KEY:-}"
 export TF_VAR_stripe_secret_key="${STRIPE_SECRET_KEY:-sk_test_local}"
 export TF_VAR_stripe_publishable_key="${STRIPE_PUBLISHABLE_KEY:-pk_test_local}"
 export TF_VAR_stripe_webhook_secret="${STRIPE_WEBHOOK_SECRET:-whsec_test_local}"
-export TF_VAR_email_provider="log"
+export TF_VAR_email_provider="${EMAIL_PROVIDER:-log}"
+export TF_VAR_resend_api_key_secret_arn=""
 export TF_VAR_new_relic_license_key=""
 export TF_VAR_new_relic_account_id=""
 
 aws_lstk() { aws --endpoint-url="$LOCALSTACK_ENDPOINT" "$@"; }
 compose_lstk() { docker compose --env-file "$ENV_FILE_PATH" -f "$COMPOSE_FILE_PATH" "$@"; }
+
+configure_localstack_email() {
+  local provider="${EMAIL_PROVIDER:-log}" secret_name secret_file secret_arn
+  case "$provider" in
+    log)
+      export TF_VAR_email_provider="log"
+      export TF_VAR_resend_api_key_secret_arn=""
+      ;;
+    resend)
+      [ -n "${RESEND_API_KEY:-}" ] || die "RESEND_API_KEY is required when EMAIL_PROVIDER=resend"
+      require_cmd jq
+      secret_name="${WORKSPACE_NAME}/resend-api-key"
+      secret_file="$(mktemp "${TMPDIR:-/tmp}/eventpro-lstk-resend.XXXXXX")"
+      chmod 600 "$secret_file"
+      RUNTIME_TFVARS_FILES+=("$secret_file")
+      jq -n --arg api_key "$RESEND_API_KEY" '{apiKey: $api_key}' >"$secret_file"
+      if aws_lstk secretsmanager describe-secret --secret-id "$secret_name" >/dev/null 2>&1; then
+        aws_lstk secretsmanager put-secret-value \
+          --secret-id "$secret_name" \
+          --secret-string "file://$secret_file" >/dev/null
+      else
+        aws_lstk secretsmanager create-secret \
+          --name "$secret_name" \
+          --secret-string "file://$secret_file" >/dev/null
+      fi
+      secret_arn="$(aws_lstk secretsmanager describe-secret --secret-id "$secret_name" --query ARN --output text)"
+      [ -n "$secret_arn" ] && [ "$secret_arn" != "None" ] || die "LocalStack did not return the Resend secret ARN"
+      export TF_VAR_email_provider="resend"
+      export TF_VAR_resend_api_key_secret_arn="$secret_arn"
+      unset RESEND_API_KEY
+      log "Configured LocalStack notification-sender for an explicit Resend integration test."
+      ;;
+    *) die "EMAIL_PROVIDER must be 'log' or 'resend'" ;;
+  esac
+}
 
 start_localstack() {
   require_cmd docker
@@ -405,7 +449,9 @@ write_localstack_runtime_tfvars() {
         --arg image_name "${TF_VAR_image_name:?LocalStack image name is not configured}" \
         --arg image_tag "${TF_VAR_image_tag:?LocalStack image tag is not configured}" \
         '{image_registry: $image_registry, image_name: $image_name, image_tag: $image_tag,
-          email_provider: "log", new_relic_license_key: "", new_relic_account_id: ""}' >"$file"
+          email_provider: env.TF_VAR_email_provider,
+          resend_api_key_secret_arn: env.TF_VAR_resend_api_key_secret_arn,
+          new_relic_license_key: "", new_relic_account_id: ""}' >"$file"
       ;;
   esac
 }
@@ -585,6 +631,12 @@ if [ "$START_ONLY" = true ]; then exit 0; fi
 if [ "$PRINT_ENDPOINTS_ONLY" = true ]; then print_endpoints; exit 0; fi
 
 check_localstack
+
+case "$ONLY:$ACTION" in
+  all:plan|all:apply|lambdas:plan|lambdas:apply|notification-sender:plan|notification-sender:apply)
+    configure_localstack_email
+    ;;
+esac
 
 if [ "$VERIFY_ONLY" = true ]; then
   WORKSPACE="$WORKSPACE_NAME" "$ROOT_DIR/scripts/verify-lstk.sh" --env-file "$ENV_FILE_PATH"

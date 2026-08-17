@@ -1095,19 +1095,11 @@ docker image build -t eventpro-order-processor:latest -f backend/lambdas/order-p
 
 ## Local Development
 
-For comprehensive local development setup, testing, and troubleshooting instructions, see:
+For the two supported production-shaped deployment workflows, see:
 
 📖 **[LOCAL_DEVELOPMENT_GUIDE.md](./LOCAL_DEVELOPMENT_GUIDE.md)**
 
-The local development guide covers:
-
-- Detailed setup instructions
-- JWT authentication using local RSA keys
-- Step-by-step configuration
-- Testing procedures
-- Troubleshooting common issues
-- Makefile commands reference
-- Service management
+The guide covers complete LocalStack Pro deployment and higher-environment AWS deployment initiated locally, including Resend configuration for both paths.
 
 ### If Docker Desktop won't start
 
@@ -1298,7 +1290,7 @@ When running locally, access Swagger UI at:
 
 ### Documentation
 
-- **[LOCAL_DEVELOPMENT_GUIDE.md](./LOCAL_DEVELOPMENT_GUIDE.md)** - Comprehensive local development guide
+- **[LOCAL_DEVELOPMENT_GUIDE.md](./LOCAL_DEVELOPMENT_GUIDE.md)** - Complete LocalStack Pro and higher-environment-from-local deployment guide
 - **[docs/LAMBDA_IMPLEMENTATION_GUIDE.md](./docs/LAMBDA_IMPLEMENTATION_GUIDE.md)** - Lambda functions implementation guide
 - **[microservice-terraform-refactor.md](./microservice-terraform-refactor.md)** - Component Terraform refactor plan/status notes
 - **[lambda-quarkus-to-springboot.md](./lambda-quarkus-to-springboot.md)** - Lambda migration notes (some sections are historical status logs)
