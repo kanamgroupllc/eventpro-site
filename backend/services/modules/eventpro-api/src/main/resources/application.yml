@@ -36,10 +36,6 @@ aws:
     orderQueueUrl: ${ORDER_QUEUE_URL}
     paymentQueueUrl: ${PAYMENT_QUEUE_URL}
     notificationQueueUrl: ${NOTIFICATION_QUEUE_URL}
-  ses:
-    region: ${AWS_REGION:us-east-1}
-    endpoint: ${SES_ENDPOINT:${AWS_ENDPOINT_URL:}} # Optional: for LocalStack (e.g. http://localhost:4566)
-    fromEmail: ${SES_FROM_EMAIL:noreply@kanamevents.com}
   sns:
     region: ${AWS_REGION:us-east-1}
   secrets-manager:
@@ -112,7 +108,7 @@ eventpro:
       enterprise:
         fee-percent: 2.5
         fee-per-ticket: 0.49
-  # Send order confirmation email after successful payment (set false if SES not configured locally)
+  # Queue application notifications for asynchronous delivery.
   notifications:
     order-confirmation-enabled: ${EVENTPRO_ORDER_CONFIRMATION_EMAIL_ENABLED:true}
     organizer-email-attendees-enabled: ${EVENTPRO_ORGANIZER_EMAIL_ATTENDEES_ENABLED:true}

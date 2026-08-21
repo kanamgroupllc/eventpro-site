@@ -35,10 +35,15 @@ public class TicketPdfServiceImpl implements TicketPdfService {
     
     @Override
     public byte[] generateTicketPdf(TicketEntity ticket) throws IOException {
+        return generateTicketPdf(ticket, null, null);
+    }
+
+    @Override
+    public byte[] generateTicketPdf(TicketEntity ticket, String attendeeName, String orderNumber) throws IOException {
         log.debug("Generating PDF ticket: ticketId={}", ticket.getId());
         
         // Get event information
-        EventEntity event = eventRepository.findById(ticket.getEventId())
+        EventEntity event = eventRepository.findByIdWithAddress(ticket.getEventId())
                 .orElseThrow(() -> new ResourceNotFoundException("Event", ticket.getEventId().toString()));
         
         try (PDDocument document = new PDDocument()) {
@@ -65,7 +70,7 @@ public class TicketPdfServiceImpl implements TicketPdfService {
                 contentStream.beginText();
                 contentStream.setFont(PDType1Font.HELVETICA_BOLD, 18);
                 contentStream.newLineAtOffset(margin, yPosition);
-                contentStream.showText(event.getName());
+                contentStream.showText(printable(event.getName()));
                 contentStream.endText();
                 
                 yPosition -= 30;
@@ -79,7 +84,7 @@ public class TicketPdfServiceImpl implements TicketPdfService {
                     String description = event.getDescription().length() > 100 
                             ? event.getDescription().substring(0, 100) + "..." 
                             : event.getDescription();
-                    contentStream.showText(description);
+                    contentStream.showText(printable(description));
                     contentStream.endText();
                     yPosition -= 25;
                 }
@@ -87,6 +92,24 @@ public class TicketPdfServiceImpl implements TicketPdfService {
                 yPosition -= 20;
                 
                 // Ticket Information
+                if (attendeeName != null && !attendeeName.isBlank()) {
+                    contentStream.beginText();
+                    contentStream.setFont(PDType1Font.HELVETICA, 12);
+                    contentStream.newLineAtOffset(margin, yPosition);
+                    contentStream.showText("Attendee: " + printable(attendeeName));
+                    contentStream.endText();
+                    yPosition -= 20;
+                }
+
+                if (orderNumber != null && !orderNumber.isBlank()) {
+                    contentStream.beginText();
+                    contentStream.setFont(PDType1Font.HELVETICA, 12);
+                    contentStream.newLineAtOffset(margin, yPosition);
+                    contentStream.showText("Order: " + printable(orderNumber));
+                    contentStream.endText();
+                    yPosition -= 20;
+                }
+
                 contentStream.beginText();
                 contentStream.setFont(PDType1Font.HELVETICA, 12);
                 contentStream.newLineAtOffset(margin, yPosition);
@@ -94,6 +117,32 @@ public class TicketPdfServiceImpl implements TicketPdfService {
                 contentStream.endText();
                 
                 yPosition -= 20;
+
+                if (event.getAddress() != null) {
+                    String venue = String.join(", ", java.util.stream.Stream.of(
+                                    event.getAddress().getStreet(), event.getAddress().getCity(),
+                                    event.getAddress().getState(), event.getAddress().getCountry())
+                            .filter(value -> value != null && !value.isBlank()).toList());
+                    if (!venue.isBlank()) {
+                        contentStream.beginText();
+                        contentStream.setFont(PDType1Font.HELVETICA, 11);
+                        contentStream.newLineAtOffset(margin, yPosition);
+                        contentStream.showText("Venue: " + printable(venue));
+                        contentStream.endText();
+                        yPosition -= 20;
+                    }
+                }
+
+                if (ticket.getSeatSection() != null || ticket.getSeatRow() != null || ticket.getSeatNumber() != null) {
+                    String seat = String.format("Section %s, Row %s, Seat %s",
+                            value(ticket.getSeatSection()), value(ticket.getSeatRow()), value(ticket.getSeatNumber()));
+                    contentStream.beginText();
+                    contentStream.setFont(PDType1Font.HELVETICA_BOLD, 12);
+                    contentStream.newLineAtOffset(margin, yPosition);
+                    contentStream.showText(printable(seat));
+                    contentStream.endText();
+                    yPosition -= 20;
+                }
                 
                 contentStream.beginText();
                 contentStream.setFont(PDType1Font.HELVETICA, 12);
@@ -123,33 +172,20 @@ public class TicketPdfServiceImpl implements TicketPdfService {
                 yPosition -= 60;
                 
                 // QR Code
-                if (ticket.getQrCode() != null || ticket.getId() != null) {
-                    try {
-                        // Generate QR code image
-                        byte[] qrCodeImage = qrCodeService.generateQRCode(ticket.getId());
-                        
-                        // Create PDImageXObject from QR code bytes
-                        PDImageXObject qrCode = PDImageXObject.createFromByteArray(document, qrCodeImage, "qr-code");
-                        
-                        // Draw QR code (150x150 pixels, centered)
-                        float qrSize = 150;
-                        float qrX = (pageWidth - qrSize) / 2;
-                        float qrY = yPosition - qrSize;
-                        
-                        contentStream.drawImage(qrCode, qrX, qrY, qrSize, qrSize);
-                        
-                        // QR Code label
-                        contentStream.beginText();
-                        contentStream.setFont(PDType1Font.HELVETICA, 10);
-                        contentStream.newLineAtOffset(qrX, qrY - 20);
-                        contentStream.showText("Scan this QR code at the event");
-                        contentStream.endText();
-                        
-                    } catch (Exception e) {
-                        log.warn("Failed to add QR code to PDF: {}", e.getMessage());
-                        // Continue without QR code
-                    }
-                }
+                if (ticket.getId() == null) throw new IOException("Ticket ID is required for the QR code");
+                byte[] qrCodeImage = qrCodeService.generateQRCode(ticket.getId());
+                PDImageXObject qrCode = PDImageXObject.createFromByteArray(document, qrCodeImage, "qr-code");
+
+                float qrSize = 150;
+                float qrX = (pageWidth - qrSize) / 2;
+                float qrY = yPosition - qrSize;
+                contentStream.drawImage(qrCode, qrX, qrY, qrSize, qrSize);
+
+                contentStream.beginText();
+                contentStream.setFont(PDType1Font.HELVETICA, 10);
+                contentStream.newLineAtOffset(qrX, qrY - 20);
+                contentStream.showText("Scan this QR code at the event");
+                contentStream.endText();
                 
                 // Footer
                 contentStream.beginText();
@@ -172,5 +208,14 @@ public class TicketPdfServiceImpl implements TicketPdfService {
             throw new IOException("Failed to generate PDF ticket: " + e.getMessage(), e);
         }
     }
-}
 
+    private static String value(Object value) { return value == null ? "-" : value.toString(); }
+
+    private static String printable(String value) {
+        if (value == null) return "";
+        return java.text.Normalizer.normalize(value, java.text.Normalizer.Form.NFKD)
+                .replaceAll("\\p{M}", "")
+                .replaceAll("[^\\x20-\\x7E]", "?")
+                .replaceAll("[\\p{Cntrl}&&[^\\n\\t]]", " ");
+    }
+}

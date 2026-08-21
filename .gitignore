@@ -201,6 +201,7 @@ z_old_project/**
 **/terraform.lstk.tfvars
 **/.terraform/**
 **/*.tfstate
+**/*.lock.hcl
 **/*.tfstate.backup
 **/.terraform.tfstate.lock.info
 terraform.tfstate.backup
@@ -220,4 +221,3 @@ docs/stitch_event_details/
 !.env.lstk.example
 !.env.remote.example
 !**/terraform.lstk.tfvars
-!**/.terraform.lock.hcl

@@ -22,6 +22,9 @@ public interface EventRepository extends JpaRepository<EventEntity, UUID> {
     @Query("SELECT e FROM EventEntity e JOIN FETCH e.organizer WHERE e.id = :id")
     Optional<EventEntity> findByIdWithOrganizer(@Param("id") UUID id);
 
+    @Query("SELECT e FROM EventEntity e LEFT JOIN FETCH e.address WHERE e.id = :id")
+    Optional<EventEntity> findByIdWithAddress(@Param("id") UUID id);
+
     Page<EventEntity> findByCategory(CategoryEntity category, Pageable pageable);
 
     Page<EventEntity> findByOrganizer(UserEntity organizer, Pageable pageable);
@@ -69,4 +72,3 @@ public interface EventRepository extends JpaRepository<EventEntity, UUID> {
                                                   @Param("status") EventStatus status,
                                                   Pageable pageable);
 }
-

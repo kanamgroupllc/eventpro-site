@@ -75,6 +75,8 @@ jobs:
             image_registry=${{ steps.ecr-docker-build.outputs.image-registry }}
             image_name=${{ steps.ecr-docker-build.outputs.image-name }}
             image_tag=${{ steps.ecr-docker-build.outputs.image-tag }}
-            ses_sender_email=${{ secrets.SES_SENDER_EMAIL }}
+            resend_api_key_secret_arn=${{ secrets.RESEND_API_KEY_SECRET_ARN }}
+            resend_from=Abcham <noreply@mail.abcham.com>
+            resend_reply_to=kanamgroupllc@gmail.com
             new_relic_license_key=${{ secrets.NEW_RELIC_LICENSE_KEY }}
             new_relic_account_id=${{ secrets.NEW_RELIC_ACCOUNT_ID }}

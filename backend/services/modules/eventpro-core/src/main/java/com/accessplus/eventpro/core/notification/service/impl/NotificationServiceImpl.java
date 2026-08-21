@@ -58,7 +58,8 @@ public class NotificationServiceImpl implements NotificationService {
         try {
             emailService.sendCustomEmail(toEmail, subject, bodyText, bodyHtml);
         } catch (Exception e) {
-            log.error("Failed to send organizer broadcast email: to={}, error={}", toEmail, e.getMessage(), e);
+            log.error("Failed to queue organizer broadcast email: error={}", e.getMessage(), e);
+            throw new IllegalStateException("Unable to queue organizer broadcast email", e);
         }
     }
 

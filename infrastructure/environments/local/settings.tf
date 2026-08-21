@@ -37,7 +37,6 @@ provider "aws" {
     iam            = "http://localhost.localstack.cloud:4566"
     sqs            = "http://localhost.localstack.cloud:4566"
     sns            = "http://localhost.localstack.cloud:4566"
-    ses            = "http://localhost.localstack.cloud:4566"
     ecs            = "http://localhost.localstack.cloud:4566"
     sts            = "http://localhost.localstack.cloud:4566"
     secretsmanager = "http://localhost.localstack.cloud:4566"

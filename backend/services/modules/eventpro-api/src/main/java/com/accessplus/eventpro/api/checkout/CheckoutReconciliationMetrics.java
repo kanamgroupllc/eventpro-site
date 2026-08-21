@@ -28,6 +28,7 @@ public class CheckoutReconciliationMetrics {
         register("eventpro.checkout.duplicate_payment_order_links");
         register("eventpro.checkout.refund_pending");
         register("eventpro.checkout.outbox_retries");
+        register("eventpro.checkout.outbox_failed");
     }
 
     private void register(String name) {
@@ -61,6 +62,7 @@ public class CheckoutReconciliationMetrics {
                     """);
             set("eventpro.checkout.refund_pending", "SELECT COUNT(*) FROM checkout_sessions WHERE status = 'REFUND_PENDING'");
             set("eventpro.checkout.outbox_retries", "SELECT COUNT(*) FROM checkout_outbox_events WHERE status = 'PENDING' AND attempts > 0");
+            set("eventpro.checkout.outbox_failed", "SELECT COUNT(*) FROM checkout_outbox_events WHERE status = 'FAILED'");
         } catch (RuntimeException e) {
             log.warn("Checkout reconciliation metrics refresh failed", e);
         }

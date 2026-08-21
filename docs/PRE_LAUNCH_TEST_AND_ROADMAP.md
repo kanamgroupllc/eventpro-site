@@ -195,7 +195,7 @@ From the Design Document “Backend Required Features” section, still to imple
 4. **Cash/offline payments** – Community partner / cash-at-door (future).
 5. **Custom domain mapping** – Field done; DNS/routing and serving events on custom domain (infra).
 6. **Data export API** – CSV export exists; ensure CCPA/GDPR-compliant flow and consent logging.
-7. **Notification service** – Event reminders, payment confirmations (SES/SNS).
+7. **Notification service** – Event reminders and confirmations through Resend/SNS.
 8. **1099-K report generation** – IRS-compliant document generation (Enterprise).
 9. **Refund/chargeback processing** – Payment reversal handling.
 10. **Check-in anomaly detection** – ML for fraud at door (Design Doc AI).

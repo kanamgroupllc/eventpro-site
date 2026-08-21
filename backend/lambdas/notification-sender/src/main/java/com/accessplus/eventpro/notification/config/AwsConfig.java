@@ -1,42 +1,53 @@
 package com.accessplus.eventpro.notification.config;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import software.amazon.awssdk.services.ses.SesClient;
-import software.amazon.awssdk.services.ses.SesClientBuilder;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.secretsmanager.SecretsManagerClient;
 import software.amazon.awssdk.services.sns.SnsClient;
-import software.amazon.awssdk.services.sns.SnsClientBuilder;
 
 import java.net.URI;
 
 @Configuration
 public class AwsConfig {
-
-    private static final Logger LOG = LoggerFactory.getLogger(AwsConfig.class);
-
     @Value("${AWS_ENDPOINT_URL:}")
     private String awsEndpointUrl;
 
     @Bean
-    public SesClient sesClient() {
-        SesClientBuilder builder = SesClient.builder();
-        if (awsEndpointUrl != null && !awsEndpointUrl.isEmpty()) {
-            builder.endpointOverride(URI.create(awsEndpointUrl));
-            LOG.info("SES Client configured with endpoint: {}", awsEndpointUrl);
-        }
-        return builder.build();
+    public ObjectMapper objectMapper() {
+        return new ObjectMapper().findAndRegisterModules();
     }
 
     @Bean
     public SnsClient snsClient() {
-        SnsClientBuilder builder = SnsClient.builder();
-        if (awsEndpointUrl != null && !awsEndpointUrl.isEmpty()) {
-            builder.endpointOverride(URI.create(awsEndpointUrl));
-            LOG.info("SNS Client configured with endpoint: {}", awsEndpointUrl);
-        }
+        var builder = SnsClient.builder();
+        if (hasEndpoint()) builder.endpointOverride(URI.create(awsEndpointUrl));
         return builder.build();
     }
+
+    @Bean
+    public S3Client s3Client() {
+        var builder = S3Client.builder().forcePathStyle(hasEndpoint());
+        if (hasEndpoint()) builder.endpointOverride(URI.create(awsEndpointUrl));
+        return builder.build();
+    }
+
+    @Bean
+    public SecretsManagerClient secretsManagerClient() {
+        var builder = SecretsManagerClient.builder();
+        if (hasEndpoint()) builder.endpointOverride(URI.create(awsEndpointUrl));
+        return builder.build();
+    }
+
+    @Bean
+    public DynamoDbClient dynamoDbClient() {
+        var builder = DynamoDbClient.builder();
+        if (hasEndpoint()) builder.endpointOverride(URI.create(awsEndpointUrl));
+        return builder.build();
+    }
+
+    private boolean hasEndpoint() { return awsEndpointUrl != null && !awsEndpointUrl.isBlank(); }
 }

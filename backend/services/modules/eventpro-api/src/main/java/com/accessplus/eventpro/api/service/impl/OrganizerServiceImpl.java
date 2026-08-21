@@ -470,10 +470,14 @@ public class OrganizerServiceImpl implements OrganizerService {
         String subj = subject != null && !subject.trim().isEmpty() ? subject.trim() : "Update from your event organizer";
         int sent = 0;
         for (String email : emails) {
-            notificationService.sendOrganizerBroadcastEmail(email, subj, bodyText, bodyHtml);
-            sent++;
+            try {
+                notificationService.sendOrganizerBroadcastEmail(email, subj, bodyText, bodyHtml);
+                sent++;
+            } catch (RuntimeException error) {
+                log.warn("Failed to queue one organizer broadcast recipient for event: {}", eventId, error);
+            }
         }
-        log.info("Organizer broadcast sent to {} recipients for event: {}", sent, eventId);
+        log.info("Organizer broadcast queued for {} recipients for event: {}", sent, eventId);
         return sent;
     }
 
@@ -723,4 +727,3 @@ public class OrganizerServiceImpl implements OrganizerService {
         return count;
     }
 }
-

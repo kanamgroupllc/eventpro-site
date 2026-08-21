@@ -88,6 +88,16 @@ output "notification_queue_arn" {
   value       = aws_sqs_queue.notification.arn
 }
 
+output "notification_queue_dlq_url" {
+  description = "Notification dead-letter queue URL"
+  value       = aws_sqs_queue.notification_dlq.url
+}
+
+output "notification_queue_dlq_arn" {
+  description = "Notification dead-letter queue ARN"
+  value       = aws_sqs_queue.notification_dlq.arn
+}
+
 output "route53_zone_id" {
   description = "Route53 hosted zone ID"
   value       = data.aws_route53_zone.main.zone_id

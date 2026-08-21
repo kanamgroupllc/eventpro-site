@@ -42,6 +42,8 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -242,10 +244,10 @@ public class EventController extends BaseController {
             emailService.sendCustomEmail(organizerEmail, subject, bodyText, bodyHtml);
         } catch (Exception e) {
             log.error("Failed to send contact email for event {} to organizer: {}", id, e.getMessage(), e);
-            throw new ValidationException("Unable to send message. Please try again later.");
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Unable to queue message. Please try again later.");
         }
 
-        return ResponseEntity.ok(ApiResponse.success(null, "Message sent."));
+        return ResponseEntity.ok(ApiResponse.success(null, "Message queued."));
     }
 
     @GetMapping

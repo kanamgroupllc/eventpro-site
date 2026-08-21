@@ -683,7 +683,7 @@ public class OrganizerController extends BaseController {
 
     @PostMapping("/events/{id}/email-attendees")
     @PreAuthorize("hasAnyRole('ORGANIZER', 'ADMIN')")
-    @Operation(summary = "Email event attendees", description = "Sends an email to all ticket holders for this event. Pro and Enterprise only.")
+    @Operation(summary = "Email event attendees", description = "Queues an email for each ticket holder for this event. Pro and Enterprise only.")
     public ResponseEntity<ApiResponse<Map<String, Object>>> emailEventAttendees(
             @PathVariable UUID id,
             @Valid @RequestBody EmailAttendeesRequest request) {
@@ -695,8 +695,8 @@ public class OrganizerController extends BaseController {
         }
         int sent = organizerService.emailEventAttendees(id, event.getOrganizer().getId(), request.getSubject(), request.getBody());
         Map<String, Object> data = new HashMap<>();
-        data.put("recipientsSent", sent);
-        return ResponseEntity.ok(ApiResponse.success(data, "Email sent to " + sent + " attendee(s)."));
+        data.put("recipientsQueued", sent);
+        return ResponseEntity.ok(ApiResponse.success(data, "Email queued for " + sent + " attendee(s)."));
     }
 
     @GetMapping("/events/{eventId}/addons")

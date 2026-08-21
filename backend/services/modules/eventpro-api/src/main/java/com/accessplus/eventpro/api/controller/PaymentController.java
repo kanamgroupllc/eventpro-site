@@ -12,19 +12,12 @@ import com.accessplus.eventpro.api.dto.OrderResponse;
 import com.accessplus.eventpro.api.service.CheckoutPaymentOrchestrationService;
 import com.accessplus.eventpro.api.security.RecaptchaVerificationService;
 import com.accessplus.eventpro.api.util.ClientIpResolver;
-import com.accessplus.eventpro.api.notification.service.NotificationPreferenceService;
-import com.accessplus.eventpro.api.notification.service.UserNotificationService;
-import com.accessplus.eventpro.core.notification.service.NotificationService;
 import com.accessplus.eventpro.core.security.JwtUtils;
-import com.accessplus.eventpro.core.user.service.UserService;
-import com.accessplus.eventpro.event.event.service.EventService;
 import com.accessplus.eventpro.api.config.TaxProperties;
 import com.accessplus.eventpro.order.cart.service.CartService;
 import com.accessplus.eventpro.order.order.model.GuestOrderItem;
 import com.accessplus.eventpro.order.order.service.OrderService;
 import com.accessplus.eventpro.payment.service.PaymentService;
-import com.accessplus.eventpro.shared.entity.OrderItemEntity;
-import com.accessplus.eventpro.shared.entity.TicketEntity;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -67,11 +60,6 @@ public class PaymentController extends BaseController {
     private final PaymentService paymentService;
     private final OrderService orderService;
     private final CartService cartService;
-    private final NotificationService notificationService;
-    private final UserNotificationService userNotificationService;
-    private final NotificationPreferenceService notificationPreferenceService;
-    private final EventService eventService;
-    private final UserService userService;
     private final CheckoutPaymentOrchestrationService checkoutPaymentOrchestrationService;
     private final RecaptchaVerificationService recaptchaVerificationService;
     private final RecaptchaProperties recaptchaProperties;
@@ -168,54 +156,4 @@ public class PaymentController extends BaseController {
                 .body(ApiResponse.error("LEGACY_CHECKOUT_DISABLED: finalize a valid checkout session"));
     }
 
-    /**
-     * Sends order confirmation email to the purchaser (user or guest).
-     * Resolves event name from first order item; does not fail the request if notification fails.
-     */
-    private void sendOrderConfirmationNotification(com.accessplus.eventpro.shared.entity.OrderEntity order,
-                                                   UUID userId, String guestEmail) {
-        try {
-            String toEmail;
-            String recipientName;
-            if (userId != null) {
-                var user = userService.getUserById(userId);
-                toEmail = user != null ? user.getEmail() : null;
-                recipientName = user != null && user.getFirstName() != null ? user.getFirstName() : "Guest";
-            } else {
-                toEmail = order.getGuestEmail();
-                recipientName = order.getGuestFirstName() != null ? order.getGuestFirstName() : "Guest";
-            }
-            String eventName = null;
-            if (order.getOrderItems() != null && !order.getOrderItems().isEmpty()) {
-                OrderItemEntity first = order.getOrderItems().get(0);
-                TicketEntity ticket = first.getTicket();
-                if (ticket != null && ticket.getEventId() != null) {
-                    try {
-                        eventName = eventService.getEventById(ticket.getEventId()).getName();
-                    } catch (Exception e) {
-                        log.debug("Could not resolve event name for notification: {}", e.getMessage());
-                    }
-                }
-            }
-            notificationService.sendOrderConfirmationEmail(
-                    toEmail,
-                    recipientName,
-                    order.getOrderNumber(),
-                    eventName,
-                    order.getTotalAmount());
-            if (userId != null && notificationPreferenceService.isInAppEnabled(userId)) {
-                try {
-                    userNotificationService.storeInAppNotification(
-                            userId,
-                            "Order confirmed",
-                            "Your order " + order.getOrderNumber() + " has been confirmed.",
-                            "ORDER_CONFIRMATION");
-                } catch (Exception inAppEx) {
-                    log.warn("Failed to store in-app order confirmation: orderId={}, error={}", order.getId(), inAppEx.getMessage());
-                }
-            }
-        } catch (Exception e) {
-            log.warn("Failed to send order confirmation notification: orderId={}, error={}", order.getId(), e.getMessage());
-        }
-    }
 }

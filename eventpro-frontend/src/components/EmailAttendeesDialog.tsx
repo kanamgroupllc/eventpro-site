@@ -43,8 +43,8 @@ export function EmailAttendeesDialog({
     }
     try {
       setSending(true);
-      const { recipientsSent } = await apiService.emailEventAttendees(eventId, { subject: subj, body: b });
-      toast.success(`Email sent to ${recipientsSent} attendee(s).`);
+      const { recipientsQueued } = await apiService.emailEventAttendees(eventId, { subject: subj, body: b });
+      toast.success(`Email queued for ${recipientsQueued} attendee(s).`);
       setSubject("");
       setBody("");
       onOpenChange(false);

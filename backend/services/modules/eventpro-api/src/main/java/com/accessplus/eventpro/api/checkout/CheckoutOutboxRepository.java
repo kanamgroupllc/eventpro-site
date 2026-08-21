@@ -6,7 +6,9 @@ import java.time.LocalDateTime;
 import java.util.*;
 
 public interface CheckoutOutboxRepository extends JpaRepository<CheckoutOutboxEventEntity, UUID> {
-    @Query(value = "SELECT * FROM checkout_outbox_events WHERE status = 'PENDING' AND next_attempt_at <= :before " +
-            "ORDER BY created_at LIMIT 100 FOR UPDATE SKIP LOCKED", nativeQuery = true)
+    @Query(value = "SELECT * FROM checkout_outbox_events WHERE " +
+            "(status = 'PENDING' AND next_attempt_at <= :before) OR " +
+            "(status = 'PROCESSING' AND lease_until <= :before) " +
+            "ORDER BY created_at LIMIT 20 FOR UPDATE SKIP LOCKED", nativeQuery = true)
     List<CheckoutOutboxEventEntity> findDue(@Param("before") LocalDateTime before);
 }

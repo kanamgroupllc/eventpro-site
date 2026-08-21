@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 2,
+  "messageId": "7b931b43-2457-4f4b-ac32-7c29bf8e7ec9",
+  "messageType": "ORDER_TICKETS",
+  "timestamp": "2026-08-16T12:00:00Z",
+  "source": "eventpro-api-checkout-outbox",
+  "payload": {
+    "orderId": "e35cfc8c-2c7b-49b9-a36c-36cc00b05571",
+    "orderNumber": "ORD-20260816-000001",
+    "manifestKey": "ticket-artifacts/orders/e35cfc8c-2c7b-49b9-a36c-36cc00b05571/manifest-v1.json"
+  }
+}

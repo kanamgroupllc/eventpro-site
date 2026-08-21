@@ -10,6 +10,29 @@ spring:
 spring.cloud.function:
   definition: sendNotification
 
-ses:
-  sender:
-    email: ${SES_SENDER_EMAIL:noreply@kanamevents.com}
+notifications:
+  email:
+    provider: ${EMAIL_PROVIDER:resend}
+
+resend:
+  api-key: ${RESEND_API_KEY:}
+  api-key-secret-arn: ${RESEND_API_KEY_SECRET_ARN:}
+  from: "${RESEND_FROM:Abcham <noreply@mail.abcham.com>}"
+  reply-to: "${RESEND_REPLY_TO:kanamgroupllc@gmail.com}"
+  endpoint: ${RESEND_ENDPOINT:https://api.resend.com/emails}
+
+ticket-artifacts:
+  bucket: ${TICKET_ARTIFACTS_BUCKET:}
+
+delivery-ledger:
+  table: ${DELIVERY_LEDGER_TABLE:}
+
+---
+spring:
+  config:
+    activate:
+      on-profile: local
+
+notifications:
+  email:
+    provider: ${EMAIL_PROVIDER:log}

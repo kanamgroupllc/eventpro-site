@@ -100,7 +100,7 @@ resource "aws_sqs_queue" "notification_queue" {
   # Dead-letter queue configuration
   redrive_policy = jsonencode({
     deadLetterTargetArn = aws_sqs_queue.notification_queue_dlq.arn
-    maxReceiveCount     = 3
+    maxReceiveCount     = 5
   })
 
   tags = {
@@ -110,11 +110,19 @@ resource "aws_sqs_queue" "notification_queue" {
   }
 }
 
-# SES Email Identity (provisioned in LocalStack - required for sending mail)
-# Use this address as aws.ses.fromEmail in local env (e.g. noreply@eventpro.com)
-resource "aws_ses_email_identity" "sender" {
-  provider = aws.localstack
-  email    = "noreply@eventpro.com"
+resource "aws_cloudwatch_metric_alarm" "notification_dlq_visible" {
+  provider            = aws.localstack
+  alarm_name          = "local-notification-dlq-visible"
+  alarm_description   = "Local notification messages require investigation"
+  namespace           = "AWS/SQS"
+  metric_name         = "ApproximateNumberOfMessagesVisible"
+  statistic           = "Maximum"
+  period              = 300
+  evaluation_periods  = 1
+  comparison_operator = "GreaterThanThreshold"
+  threshold           = 0
+  treat_missing_data  = "notBreaching"
+  dimensions          = { QueueName = aws_sqs_queue.notification_queue_dlq.name }
 }
 
 # S3 Bucket for Event Images (provisioned in LocalStack)
@@ -128,6 +136,17 @@ resource "aws_s3_bucket" "images" {
     Name        = "eventpro-images-local"
     Environment = "local"
     Purpose     = "Event images storage"
+  }
+}
+
+resource "aws_s3_bucket_server_side_encryption_configuration" "images" {
+  provider = aws.localstack
+  bucket   = aws_s3_bucket.images.id
+
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm = "AES256"
+    }
   }
 }
 
@@ -169,10 +188,32 @@ resource "aws_s3_bucket_policy" "images" {
         Effect    = "Allow"
         Principal = "*"
         Action    = "s3:GetObject"
-        Resource  = "${aws_s3_bucket.images.arn}/*"
+        Resource = [
+          "${aws_s3_bucket.images.arn}/events/*",
+          "${aws_s3_bucket.images.arn}/profile-pictures/*"
+        ]
       }
     ]
   })
+}
+
+resource "aws_dynamodb_table" "notification_delivery_ledger" {
+  provider     = aws.localstack
+  name         = "local-notification-delivery-ledger"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "delivery_key"
+
+  attribute {
+    name = "delivery_key"
+    type = "S"
+  }
+
+  server_side_encryption { enabled = true }
+
+  tags = {
+    Name        = "local-notification-delivery-ledger"
+    Environment = "local"
+  }
 }
 
 # Lambda Functions (provisioned in LocalStack)
@@ -390,6 +431,16 @@ resource "aws_iam_role_policy" "lambda_notification_sender" {
           "sqs:GetQueueUrl"
         ]
         Resource = aws_sqs_queue.notification_queue.arn
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["s3:GetObject"]
+        Resource = "${aws_s3_bucket.images.arn}/ticket-artifacts/*"
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["dynamodb:GetItem", "dynamodb:PutItem"]
+        Resource = aws_dynamodb_table.notification_delivery_ledger.arn
       }
     ]
   })
@@ -479,13 +530,15 @@ resource "aws_lambda_function" "notification_sender" {
   function_name = "local-notification-sender"
   description   = "Sends notifications from SQS queue via email, SMS, or in-app"
   role          = aws_iam_role.lambda_notification_sender.arn
-  handler       = "io.quarkus.amazon.lambda.runtime.QuarkusStreamHandler::handleRequest"
-  runtime       = "provided.al2"
   timeout       = 60 # 1 minute
-  memory_size   = 256
+  memory_size   = 512
 
   package_type = "Image"
   image_uri    = "eventpro-notification-sender:local"
+
+  image_config {
+    command = ["org.springframework.cloud.function.adapter.aws.FunctionInvoker::handleRequest"]
+  }
 
   environment {
     variables = {
@@ -494,9 +547,12 @@ resource "aws_lambda_function" "notification_sender" {
       DB_PASSWORD      = "eventpro"
       AWS_ENDPOINT_URL = "http://localstack:4566"
       # AWS_REGION is reserved on Lambda; runtime provides it (see AWS docs).
-      AWS_ACCESS_KEY_ID     = "test"
-      AWS_SECRET_ACCESS_KEY = "test"
-      SES_SENDER_EMAIL      = "noreply@eventpro.com"
+      AWS_ACCESS_KEY_ID                = "test"
+      AWS_SECRET_ACCESS_KEY            = "test"
+      EMAIL_PROVIDER                   = "log"
+      TICKET_ARTIFACTS_BUCKET          = aws_s3_bucket.images.id
+      DELIVERY_LEDGER_TABLE            = aws_dynamodb_table.notification_delivery_ledger.name
+      spring_cloud_function_definition = "sendNotification"
     }
   }
 
@@ -562,6 +618,7 @@ resource "aws_lambda_event_source_mapping" "notification_queue" {
   maximum_record_age_in_seconds      = 604800 # 7 days
   bisect_batch_on_function_error     = true
   maximum_retry_attempts             = 3
+  function_response_types            = ["ReportBatchItemFailures"]
 
   depends_on = [
     aws_lambda_function.notification_sender,

@@ -14,8 +14,6 @@ import { toast } from "sonner";
 import { getEventImageUrl } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 
-const QR_BASE = "https://api.qrserver.com/v1/create-qr-code/";
-
 export interface SuccessTicketRevealProps {
   orderId: string | null;
   eventName: string;
@@ -35,7 +33,6 @@ function shareUrl(): string {
 }
 
 export function SuccessTicketReveal({
-  orderId,
   eventName,
   attendeeName,
   ticketType,
@@ -102,7 +99,6 @@ export function SuccessTicketReveal({
           {ticketCards.map((ticket, idx) => {
             const seatLabel =
               ticket.total > 1 ? `${ticket.label} (${ticket.index}/${ticket.total})` : ticket.label;
-            const qrData = orderId ? `${orderId}:${idx + 1}` : null;
             return (
               <div
                 key={`${seatLabel}-${idx}`}
@@ -142,17 +138,11 @@ export function SuccessTicketReveal({
                 </div>
 
                 <div className="px-4 py-4 border-b border-border/50">
-                  <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground mb-2">Instant access QR</p>
-                  <div className="flex justify-center rounded-2xl bg-primary/8 p-4">
-                    {qrData ? (
-                      <img
-                        src={`${QR_BASE}?size=180x180&data=${encodeURIComponent(qrData)}&format=svg`}
-                        alt={`Ticket ${idx + 1} QR code`}
-                        className="h-44 w-44 rounded-xl"
-                      />
-                    ) : (
-                      <div className="h-44 w-44 rounded-xl bg-muted flex items-center justify-center text-muted-foreground text-sm">QR</div>
-                    )}
+                  <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground mb-2">Ticket delivery</p>
+                  <div className="flex flex-col items-center justify-center rounded-2xl bg-primary/8 p-6 text-center">
+                    <Ticket className="h-12 w-12 text-primary mb-3" />
+                    <p className="font-semibold text-foreground">Your real QR ticket is being prepared</p>
+                    <p className="mt-1 text-xs text-muted-foreground">We will email the PDF ticket shortly. Account holders can also find it in Purchases.</p>
                   </div>
                 </div>
               </div>
@@ -206,7 +196,7 @@ export function SuccessTicketReveal({
         </motion.div>
 
         <p className="mt-8 text-center text-xs text-muted-foreground leading-relaxed">
-          A confirmation email has been sent to your registered address.
+          Payment is confirmed. Your ticket email is being prepared and will arrive shortly.
         </p>
         <p className="mt-2 text-center text-xs text-muted-foreground">
           Need help?{" "}

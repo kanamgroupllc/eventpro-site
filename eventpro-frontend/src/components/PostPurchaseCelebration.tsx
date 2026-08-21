@@ -12,8 +12,6 @@ interface PostPurchaseCelebrationProps {
   attendeeCount?: number | null;
 }
 
-const QR_BASE = "https://api.qrserver.com/v1/create-qr-code/";
-
 export function PostPurchaseCelebration({ orderId, eventName, attendeeCount }: PostPurchaseCelebrationProps) {
   const navigate = useNavigate();
   const shareUrl = typeof window !== "undefined" ? `${window.location.origin}/events` : "";
@@ -128,23 +126,12 @@ export function PostPurchaseCelebration({ orderId, eventName, attendeeCount }: P
             <span className="font-semibold text-base sm:text-lg">Digital Ticket</span>
           </div>
           <p className="text-xs sm:text-sm text-muted-foreground mb-4">
-            Show this QR at the door. We’ve also sent your ticket by email.
+            Your real QR ticket is being prepared and will be delivered by email.
           </p>
-          {/* QR code with breathing glow */}
-          <div className="ticket-qr-glow inline-flex p-4 rounded-2xl bg-white">
-            {orderId ? (
-              <img
-                src={`${QR_BASE}?size=180x180&data=${encodeURIComponent(orderId)}&format=svg`}
-                alt="Ticket QR code"
-                className="w-[180px] h-[180px] rounded-lg"
-              />
-            ) : (
-              <div className="w-[180px] h-[180px] rounded-lg bg-muted flex items-center justify-center text-muted-foreground text-sm">
-                QR code
-              </div>
-            )}
+          <div className="ticket-qr-glow inline-flex p-8 rounded-2xl bg-white text-primary">
+            <Ticket className="w-24 h-24" aria-label="Ticket is being prepared" />
           </div>
-          <p className="text-xs text-muted-foreground mt-3">Scan at door</p>
+          <p className="text-xs text-muted-foreground mt-3">Use the QR from your email or Purchases at the door</p>
 
           {/* Wallet actions — vibrant branded buttons */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-6">

@@ -118,7 +118,7 @@ Note: The detailed diagrams in this section contain some historical labels (for 
         │ Lambda (Quarkus)  │  │ Lambda        │  │ Sender Lambda │
         │                   │  │ (Quarkus)     │  │ (Quarkus)     │
         │ - Validates       │  │               │  │               │
-        │ - Reserves tickets│  │ - Stripe API  │  │ - Email (SES) │
+        │ - Reserves tickets│  │ - Stripe API  │  │ - Email       │
         │ - Publishes to    │  │ - Updates DB  │  │ - SMS (SNS)   │
         │   payment-queue   │  │ - Publishes   │  │ - In-App      │
         └───────────────────┘  │   to notify-q │  └───────────────┘
@@ -129,8 +129,8 @@ Note: The detailed diagrams in this section contain some historical labels (for 
                     │
                     ▼
         ┌───────────────────┐  ┌───────────────┐
-        │  AWS SES          │  │  AWS SNS      │
-        │  (LocalStack)     │  │  (LocalStack) │
+        │  Resend API       │  │  AWS SNS      │
+        │  (production)     │  │  (LocalStack) │
         │                   │  │               │
         │ - Email Delivery  │  │ - SMS Delivery│
         └───────────────────┘  └───────────────┘
@@ -347,7 +347,7 @@ Note: The detailed diagrams in this section contain some historical labels (for 
           │                 │                 │
           ▼                 ▼                 ▼
    ┌─────────────┐  ┌─────────────┐  ┌─────────────┐
-   │  AWS SES    │  │  AWS SNS    │  │ PostgreSQL  │
+   │  Resend API │  │  AWS SNS    │  │ PostgreSQL  │
    │ Send Email  │  │ Send SMS    │  │ Store In-App│
    └──────┬──────┘  └──────┬──────┘  └─────────────┘
           │                │
@@ -613,7 +613,7 @@ Note: The detailed diagrams in this section contain some historical labels (for 
                     ┌─────────┴─────────┐
                     ▼                   ▼
             ┌──────────────┐    ┌──────────────┐
-            │  AWS SQS     │    │  AWS SES     │
+            │  AWS SQS     │    │  Resend API  │
             │  (Queues)    │    │  (Email)     │
             └──────────────┘    └──────────────┘
                     │                   │
@@ -664,7 +664,7 @@ EventPro uses a **Modular Monolith** architecture for the main API service, comb
 
 - **Within Monolith**: Direct method calls, Spring Dependency Injection, Spring Events
 - **Async Processing**: SQS queues → Lambda functions (Order Processor, Payment Processor, Notification Sender)
-- **External**: REST API, Database (PostgreSQL), AWS Services (SQS, SES, SNS, S3)
+- **External**: REST API, Database (PostgreSQL), AWS Services (SQS, SNS, S3, Secrets Manager, DynamoDB), Resend
 
 **When to Extract to Microservices:**
 
@@ -731,7 +731,7 @@ EventPro uses a **Modular Monolith** architecture for the main API service, comb
 | **ALB** | Application Load Balancer |
 | **Route53** | DNS management |
 | **Secrets Manager** | Secure credential storage |
-| **SES** | Email notifications |
+| **Resend** | Transactional email and ticket attachments |
 | **SNS** | SMS notifications |
 | **SQS** | Message queuing (for async processing) |
 | **ECR** | Container registry for Lambda images |
@@ -842,7 +842,7 @@ eventpro-site/
 
 3. **notification-sender**
    - Sends notifications from SQS queue
-   - Email (SES) and SMS (SNS) delivery
+   - Email (Resend) and SMS (SNS) delivery
    - In-app notification currently simulated/logged
 
 #### `backend/shared` (Deprecated Reference Module)
@@ -976,7 +976,7 @@ eventpro-site/
 
 #### Messaging & Notifications
 
-- **SES**: Email notifications
+- **Resend**: Email notifications and ticket attachments
   - Transactional emails
   - Email templates
 - **SNS**: SMS notifications
@@ -1003,7 +1003,7 @@ For local development, the following services are used:
 
 - **PostgreSQL (Docker)**: Local database
 - **LocalStack (Docker)**: AWS service emulation
-  - S3, SQS, Secrets Manager, SES, SNS
+  - S3, SQS, Secrets Manager, DynamoDB, and SNS; email is captured by the logging provider
 - **Docker Compose**: Service orchestration
 
 ---
@@ -1095,19 +1095,11 @@ docker image build -t eventpro-order-processor:latest -f backend/lambdas/order-p
 
 ## Local Development
 
-For comprehensive local development setup, testing, and troubleshooting instructions, see:
+For the two supported production-shaped deployment workflows, see:
 
 📖 **[LOCAL_DEVELOPMENT_GUIDE.md](./LOCAL_DEVELOPMENT_GUIDE.md)**
 
-The local development guide covers:
-
-- Detailed setup instructions
-- JWT authentication using local RSA keys
-- Step-by-step configuration
-- Testing procedures
-- Troubleshooting common issues
-- Makefile commands reference
-- Service management
+The guide covers complete LocalStack Pro deployment and higher-environment AWS deployment initiated locally, including Resend configuration for both paths.
 
 ### If Docker Desktop won't start
 
@@ -1298,7 +1290,7 @@ When running locally, access Swagger UI at:
 
 ### Documentation
 
-- **[LOCAL_DEVELOPMENT_GUIDE.md](./LOCAL_DEVELOPMENT_GUIDE.md)** - Comprehensive local development guide
+- **[LOCAL_DEVELOPMENT_GUIDE.md](./LOCAL_DEVELOPMENT_GUIDE.md)** - Complete LocalStack Pro and higher-environment-from-local deployment guide
 - **[docs/LAMBDA_IMPLEMENTATION_GUIDE.md](./docs/LAMBDA_IMPLEMENTATION_GUIDE.md)** - Lambda functions implementation guide
 - **[microservice-terraform-refactor.md](./microservice-terraform-refactor.md)** - Component Terraform refactor plan/status notes
 - **[lambda-quarkus-to-springboot.md](./lambda-quarkus-to-springboot.md)** - Lambda migration notes (some sections are historical status logs)
@@ -1366,7 +1358,10 @@ For email notifications via Resend:
 1. Sign up at [Resend](https://resend.com)
 2. Verify your email domain at [Resend](https://resend.com/domains)
 3. Create an API key at [Resend](https://resend.com/api-keys)
-4. Configure the API key in your environment (optional for local development)
+4. Rotate any key that has appeared in a tracked or local Terraform values file.
+5. Create the production secret outside Terraform as JSON with one `apiKey` field, then configure only its ARN as `RESEND_API_KEY_SECRET_ARN` in CI.
+
+The verified sender is `Abcham <noreply@mail.abcham.com>`. The existing `mail.abcham.com` DNS records are intentionally not managed by these stacks. Local development uses `EMAIL_PROVIDER=log`; an untracked `RESEND_API_KEY` is supported only for a deliberate local integration test.
 
 <details>
 <summary>Higher environment</summary>

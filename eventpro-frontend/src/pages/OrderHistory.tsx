@@ -29,10 +29,10 @@ import { format } from "date-fns";
 import { PageShell } from "@/components/PageShell";
 import {
   getEventIdFromOrderLineItem,
+  getTicketIdFromOrderLineItem,
   getOrderLineItems,
   expandOrderLineItems,
   getTicketQuantityFromOrderItems,
-  getQrCodeFromOrderLineItem,
   parseOrderTimestamp,
   resolveOrderEventDate,
   resolveOrderEventEndDate,
@@ -132,7 +132,7 @@ const OrderHistory = () => {
   const [orders, setOrders] = useState<OrderWithMeta[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [walletBalance, setWalletBalance] = useState(0);
-  const [viewTicketOrderId, setViewTicketOrderId] = useState<string | null>(null);
+  const [viewTicketKey, setViewTicketKey] = useState<string | null>(null);
   const [ticketTab, setTicketTab] = useState<"upcoming" | "past">("upcoming");
 
   const loadOrders = useCallback(async () => {
@@ -222,8 +222,8 @@ const OrderHistory = () => {
 
   const visibleTickets = ticketTab === "upcoming" ? upcoming : past;
 
-  const viewTicketEntry = viewTicketOrderId
-    ? [...upcoming, ...past].find((t) => t.order.id === viewTicketOrderId)
+  const viewTicketEntry = viewTicketKey
+    ? [...upcoming, ...past].find((t) => t.key === viewTicketKey)
     : null;
 
   if (isLoading) {
@@ -322,7 +322,7 @@ const OrderHistory = () => {
                       key={entry.key}
                       entry={entry}
                       index={index}
-                      onViewTicket={() => setViewTicketOrderId(entry.order.id)}
+                      onViewTicket={() => setViewTicketKey(entry.key)}
                       isFeatured={ticketTab === "upcoming"}
                     />
                   ))}
@@ -369,7 +369,7 @@ const OrderHistory = () => {
         )}
       </div>
 
-      <Dialog open={!!viewTicketEntry} onOpenChange={(open) => !open && setViewTicketOrderId(null)}>
+      <Dialog open={!!viewTicketEntry} onOpenChange={(open) => !open && setViewTicketKey(null)}>
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
             <DialogTitle>View Ticket</DialogTitle>
@@ -377,18 +377,7 @@ const OrderHistory = () => {
           {viewTicketEntry && (
             <div className="space-y-4">
               <div className="bg-muted/50 rounded-lg p-6 flex items-center justify-center min-h-[200px]">
-                {getQrCodeFromOrderLineItem(viewTicketEntry.lineItem) ? (
-                  <img
-                    src={getQrCodeFromOrderLineItem(viewTicketEntry.lineItem)!}
-                    alt="Ticket QR code"
-                    className="h-44 w-44 rounded-lg object-contain"
-                  />
-                ) : (
-                  <div className="text-center">
-                    <QrCode className="h-24 w-24 mx-auto text-muted-foreground mb-2" />
-                    <p className="text-sm text-muted-foreground">QR code will appear after purchase</p>
-                  </div>
-                )}
+                <AuthenticatedTicketQr lineItem={viewTicketEntry.lineItem} className="h-44 w-44" />
               </div>
               <p className="text-sm text-muted-foreground">
                 Ticket {viewTicketEntry.ticketIndex} of {viewTicketEntry.ticketTotal}
@@ -428,7 +417,7 @@ function OrderTicketCard({
   const genre = event?.categoryName ?? event?.category ?? "LIVE / EVENT";
   const ticketCount = getTicketQuantityFromOrderItems(getOrderLineItems(order));
   const perTicketAmount = ticketCount > 0 ? Number(order.totalAmount ?? 0) / ticketCount : 0;
-  const qrUrl = getQrCodeFromOrderLineItem(entry.lineItem);
+  const ticketId = getTicketIdFromOrderLineItem(entry.lineItem);
 
   return (
     <motion.div
@@ -502,11 +491,7 @@ function OrderTicketCard({
             <div className="flex flex-col sm:flex-row sm:items-center gap-3 pt-2 border-t border-border/60">
               <div className="flex items-center gap-3 flex-1">
                 <div className="rounded-lg border bg-muted/40 p-2">
-                  {qrUrl ? (
-                    <img src={qrUrl} alt="" className="h-10 w-10 object-contain" />
-                  ) : (
-                    <QrCode className="h-10 w-10 text-muted-foreground" />
-                  )}
+                  <AuthenticatedTicketQr lineItem={entry.lineItem} className="h-10 w-10" />
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">Ticket value</p>
@@ -534,7 +519,17 @@ function OrderTicketCard({
                   variant="ghost"
                   size="icon"
                   className="text-primary hover:bg-primary/10"
-                  onClick={(e) => e.stopPropagation()}
+                  onClick={async (e) => {
+                    e.stopPropagation();
+                    if (!ticketId) return;
+                    const blob = await apiService.downloadTicketPdf(ticketId);
+                    const url = URL.createObjectURL(blob);
+                    const link = document.createElement("a");
+                    link.href = url;
+                    link.download = `ticket-${ticketId}.pdf`;
+                    link.click();
+                    URL.revokeObjectURL(url);
+                  }}
                   title="Download PDF"
                 >
                   <Download className="h-4 w-4" />
@@ -555,6 +550,33 @@ function OrderTicketCard({
       </Card>
     </motion.div>
   );
+}
+
+function AuthenticatedTicketQr({ lineItem, className }: { lineItem: unknown; className: string }) {
+  const ticketId = getTicketIdFromOrderLineItem(lineItem);
+  const [url, setUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    let objectUrl: string | null = null;
+    setUrl(null);
+    if (ticketId) {
+      void apiService.getTicketQr(ticketId).then((blob) => {
+        if (!active) return;
+        objectUrl = URL.createObjectURL(blob);
+        setUrl(objectUrl);
+      }).catch(() => {
+        if (active) setUrl(null);
+      });
+    }
+    return () => {
+      active = false;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [ticketId]);
+
+  return url ? <img src={url} alt="Ticket QR code" className={`${className} rounded-lg object-contain`} />
+    : <QrCode className={`${className} text-muted-foreground`} aria-label="Ticket QR is being prepared" />;
 }
 
 export default OrderHistory;

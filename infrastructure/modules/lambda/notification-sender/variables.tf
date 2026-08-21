@@ -35,10 +35,10 @@ variable "database_name" {
   type        = string
 }
 
-variable "ses_sender_email" {
-  description = "SES sender email address"
+variable "email_provider" {
+  description = "Provider used by notification-sender"
   type        = string
-  default     = "noreply@eventpro.com"
+  default     = "log"
 }
 
 variable "aws_region" {
@@ -127,4 +127,3 @@ variable "tags" {
   type        = map(string)
   default     = {}
 }
-

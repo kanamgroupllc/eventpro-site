@@ -14,7 +14,7 @@ import software.amazon.awssdk.services.sqs.model.SendMessageRequest;
 public class SQSMessagePublisher {
     private final SqsClient sqsClient;
     private final SQSConfig sqsConfig;
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final ObjectMapper objectMapper;
     
     public void publish(String queueUrl, Object message) {
         try {
@@ -51,4 +51,3 @@ public class SQSMessagePublisher {
         publish(queueUrl, message);
     }
 }
-

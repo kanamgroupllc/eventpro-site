@@ -1,6 +1,6 @@
 # Notification-sender Lambda Terraform - Phase 5
 # Lambda (container image), IAM, SQS event source mapping
-# No VPC - uses SES/SNS (public AWS APIs); no RDS
+# No VPC - uses Resend and public AWS APIs; no RDS
 
 locals {
   workspace   = terraform.workspace
@@ -11,7 +11,6 @@ locals {
     AWS_ACCESS_KEY_ID     = "test"
     AWS_SECRET_ACCESS_KEY = "test"
     AWS_ENDPOINT_URL      = var.localstack_runtime_endpoint
-    SES_ENDPOINT          = var.localstack_runtime_endpoint
   } : {}
   new_relic_env = var.new_relic_license_key != "" ? {
     AWS_LAMBDA_EXEC_WRAPPER               = "/opt/newrelic-java-handler"
@@ -63,9 +62,11 @@ provider "aws" {
 
   endpoints {
     cloudwatchlogs = var.use_localstack ? var.localstack_endpoint : null
+    dynamodb       = var.use_localstack ? var.localstack_endpoint : null
     iam            = var.use_localstack ? var.localstack_endpoint : null
     lambda         = var.use_localstack ? var.localstack_endpoint : null
-    ses            = var.use_localstack ? var.localstack_endpoint : null
+    s3             = var.use_localstack ? var.localstack_endpoint : null
+    secretsmanager = var.use_localstack ? var.localstack_endpoint : null
     sqs            = var.use_localstack ? var.localstack_endpoint : null
     sts            = var.use_localstack ? var.localstack_endpoint : null
   }
@@ -129,9 +130,9 @@ resource "aws_iam_role_policy" "sqs" {
   })
 }
 
-# IAM Policy: SES send email
-resource "aws_iam_role_policy" "ses" {
-  name = "${local.name_prefix}-notification-sender-ses-policy"
+# IAM Policy: private ticket artifacts
+resource "aws_iam_role_policy" "ticket_artifacts" {
+  name = "${local.name_prefix}-notification-sender-ticket-artifacts-policy"
   role = aws_iam_role.lambda.id
 
   policy = jsonencode({
@@ -139,10 +140,52 @@ resource "aws_iam_role_policy" "ses" {
     Statement = [
       {
         Effect   = "Allow"
-        Action   = ["ses:SendEmail", "ses:SendRawEmail"]
-        Resource = "*"
+        Action   = ["s3:GetObject"]
+        Resource = "${data.terraform_remote_state.shared_infra.outputs.s3_images_bucket_arn}/ticket-artifacts/*"
       }
     ]
+  })
+}
+
+resource "aws_iam_role_policy" "resend_secret" {
+  count = var.resend_api_key_secret_arn == "" ? 0 : 1
+  name  = "${local.name_prefix}-notification-sender-resend-secret-policy"
+  role  = aws_iam_role.lambda.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = ["secretsmanager:GetSecretValue"]
+      Resource = var.resend_api_key_secret_arn
+    }]
+  })
+}
+
+resource "aws_dynamodb_table" "delivery_ledger" {
+  name         = "${local.name_prefix}-notification-delivery-ledger"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "delivery_key"
+
+  attribute {
+    name = "delivery_key"
+    type = "S"
+  }
+
+  server_side_encryption { enabled = true }
+  point_in_time_recovery { enabled = !var.use_localstack }
+  tags = merge(local.common_tags, { Name = "${local.name_prefix}-notification-delivery-ledger" })
+}
+
+resource "aws_iam_role_policy" "delivery_ledger" {
+  name = "${local.name_prefix}-notification-sender-delivery-ledger-policy"
+  role = aws_iam_role.lambda.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = ["dynamodb:GetItem", "dynamodb:PutItem"]
+      Resource = aws_dynamodb_table.delivery_ledger.arn
+    }]
   })
 }
 
@@ -187,7 +230,7 @@ resource "aws_iam_role_policy" "cloudwatch_logs" {
 # Lambda Function (Spring Boot container image) - no VPC for faster cold starts
 resource "aws_lambda_function" "notification_sender" {
   function_name = "${local.name_prefix}-notification-sender"
-  description   = "Sends notifications from SQS via SES (email) and SNS (SMS)"
+  description   = "Sends notifications from SQS via Resend (email) and SNS (SMS)"
   role          = aws_iam_role.lambda.arn
   timeout       = var.timeout_seconds
   memory_size   = var.memory_size_mb
@@ -203,7 +246,12 @@ resource "aws_lambda_function" "notification_sender" {
   environment {
     variables = merge({
       # AWS_REGION is reserved; Lambda injects it automatically — do not set here.
-      SES_SENDER_EMAIL                 = var.ses_sender_email
+      EMAIL_PROVIDER                   = var.email_provider
+      RESEND_API_KEY_SECRET_ARN        = var.resend_api_key_secret_arn
+      RESEND_FROM                      = var.resend_from
+      RESEND_REPLY_TO                  = var.resend_reply_to
+      TICKET_ARTIFACTS_BUCKET          = data.terraform_remote_state.shared_infra.outputs.s3_images_bucket_id
+      DELIVERY_LEDGER_TABLE            = aws_dynamodb_table.delivery_ledger.name
       spring_cloud_function_definition = "sendNotification"
     }, local.localstack_runtime_env, local.new_relic_env)
   }
@@ -217,6 +265,10 @@ resource "aws_lambda_function" "notification_sender" {
     precondition {
       condition     = var.new_relic_license_key == "" || var.new_relic_account_id != ""
       error_message = "new_relic_account_id is required when new_relic_license_key is set for New Relic Lambda monitoring."
+    }
+    precondition {
+      condition     = var.email_provider != "resend" || var.resend_api_key_secret_arn != ""
+      error_message = "resend_api_key_secret_arn is required when email_provider is resend."
     }
   }
 
@@ -235,6 +287,7 @@ resource "aws_lambda_event_source_mapping" "notification_queue" {
 
   batch_size                         = var.batch_size
   maximum_batching_window_in_seconds = 5
+  function_response_types            = ["ReportBatchItemFailures"]
 
   tags = merge(local.common_tags, { Name = "${local.name_prefix}-notification-sender-event-source" })
 }

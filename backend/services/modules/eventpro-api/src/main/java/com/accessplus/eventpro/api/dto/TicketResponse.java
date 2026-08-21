@@ -27,8 +27,6 @@ public class TicketResponse {
     private BigDecimal price;
     private LocalDateTime startTime;
     private LocalDateTime endTime;
-    private String qrCode;
-    private String printOutUrl;
     private String eventIdType; // Event ID as string for legacy API compatibility
     
     public static TicketResponse fromEntity(TicketEntity entity) {
@@ -44,10 +42,7 @@ public class TicketResponse {
                 .price(entity.getPrice())
                 .startTime(entity.getStartTime())
                 .endTime(entity.getEndTime())
-                .qrCode(entity.getQrCode())
-                .printOutUrl(entity.getPrintOutUrl())
                 .eventIdType(entity.getEventId() != null ? entity.getEventId().toString() : null)
                 .build();
     }
 }
-

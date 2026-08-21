@@ -44,6 +44,7 @@ dependencies {
     // AWS SDK
     implementation platform("software.amazon.awssdk:bom:${project.ext.awsSdkVersion}")
     implementation 'software.amazon.awssdk:sqs'
+    implementation 'software.amazon.awssdk:s3'
 
     // Stripe (webhook controller and subscription checkout use Stripe types directly)
     implementation 'com.stripe:stripe-java:24.16.0'

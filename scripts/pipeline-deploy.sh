@@ -126,7 +126,7 @@ Optional env vars passed to Terraform when set:
   NEW_RELIC_LICENSE_KEY (legacy alias: NEWRELIC_LICENSE_KEY)
   NEW_RELIC_ACCOUNT_ID (legacy alias: NEW_RELIC_TRUSTED_ACCOUNT_KEY)
     When deploying lambdas: both must be set together or both unset (see scripts/check-newrelic-lambda-prereqs.sh).
-  SES_SENDER_EMAIL
+  RESEND_API_KEY_SECRET_ARN
   VITE_API_BASE_URL
 
 Build behavior env vars:
@@ -316,7 +316,7 @@ clear_localstack_environment() {
   local name
   while IFS='=' read -r name _; do
     case "$name" in
-      AWS_ENDPOINT_URL|AWS_ENDPOINT_URL_*|LOCALSTACK_*|SQS_ENDPOINT|SES_ENDPOINT|AWS_SECRETS_MANAGER_ENDPOINT|AWS_S3_PUBLIC_ENDPOINT)
+      AWS_ENDPOINT_URL|AWS_ENDPOINT_URL_*|LOCALSTACK_*|SQS_ENDPOINT|AWS_SECRETS_MANAGER_ENDPOINT|AWS_S3_PUBLIC_ENDPOINT)
         unset "$name"
         ;;
     esac
@@ -1078,9 +1078,10 @@ run_lambda_stack() {
       export TF_VAR_stripe_secret_key="$STRIPE_SECRET_KEY"
     fi
 
-    if [ "$lambda" = "notification-sender" ] && [ -n "${SES_SENDER_EMAIL:-}" ]; then
-      export TF_VAR_ses_sender_email="$SES_SENDER_EMAIL"
-      tf_extra_args+=(-var="ses_sender_email=${SES_SENDER_EMAIL}")
+    if [ "$lambda" = "notification-sender" ]; then
+      require_var RESEND_API_KEY_SECRET_ARN
+      export TF_VAR_resend_api_key_secret_arn="$RESEND_API_KEY_SECRET_ARN"
+      tf_extra_args+=(-var="resend_api_key_secret_arn=${RESEND_API_KEY_SECRET_ARN}")
     fi
 
     tf_extra_args+=("-var-file=$sensitive_var_file")

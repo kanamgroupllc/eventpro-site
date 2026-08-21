@@ -63,26 +63,6 @@ resource "aws_iam_role_policy" "sqs" {
   })
 }
 
-# IAM Policy for SES (Email)
-resource "aws_iam_role_policy" "ses" {
-  name = "${var.name_prefix}-notification-sender-ses-policy"
-  role = aws_iam_role.lambda.id
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect = "Allow"
-        Action = [
-          "ses:SendEmail",
-          "ses:SendRawEmail"
-        ]
-        Resource = "*"
-      }
-    ]
-  })
-}
-
 # IAM Policy for SNS (SMS)
 resource "aws_iam_role_policy" "sns" {
   name = "${var.name_prefix}-notification-sender-sns-policy"
@@ -170,7 +150,7 @@ resource "aws_iam_role_policy" "secrets_manager" {
 # Lambda Function
 resource "aws_lambda_function" "notification_sender" {
   function_name = "${var.name_prefix}-notification-sender"
-  description   = "Sends notifications from SQS queue via email (SES), SMS (SNS), and stores in-app notifications"
+  description   = "Sends notifications from SQS queue via email, SMS, and in-app delivery"
   role          = aws_iam_role.lambda.arn
   handler       = "io.quarkus.amazon.lambda.runtime.QuarkusStreamHandler::handleRequest"
   runtime       = "provided.al2"
@@ -184,11 +164,11 @@ resource "aws_lambda_function" "notification_sender" {
   # Environment variables
   environment {
     variables = {
-      DB_HOST          = var.database_host
-      DB_PORT          = tostring(var.database_port)
-      DB_NAME          = var.database_name
-      DB_SECRET_ARN    = var.database_secret_arn
-      SES_SENDER_EMAIL = var.ses_sender_email
+      DB_HOST        = var.database_host
+      DB_PORT        = tostring(var.database_port)
+      DB_NAME        = var.database_name
+      DB_SECRET_ARN  = var.database_secret_arn
+      EMAIL_PROVIDER = var.email_provider
       # AWS_REGION is reserved; Lambda injects it — do not set here.
       QUARKUS_LOG_LEVEL = var.log_level
     }
@@ -237,4 +217,3 @@ resource "aws_lambda_event_source_mapping" "notification_queue" {
     }
   )
 }
-

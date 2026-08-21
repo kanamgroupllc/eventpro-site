@@ -459,6 +459,16 @@ class ApiService {
     return response.data.data;
   }
 
+  async getTicketQr(ticketId: string): Promise<Blob> {
+    const response = await this.api.get(`/api/v1/tickets/${ticketId}/qr`, { responseType: "blob" });
+    return response.data as Blob;
+  }
+
+  async downloadTicketPdf(ticketId: string): Promise<Blob> {
+    const response = await this.api.get(`/api/v1/tickets/${ticketId}/download`, { responseType: "blob" });
+    return response.data as Blob;
+  }
+
   async createOrder(): Promise<Order> {
     const response = await this.api.post<ApiResponse<Order>>("/api/v1/orders");
     return response.data.data;
@@ -877,14 +887,14 @@ class ApiService {
     return response.data.data ?? [];
   }
 
-  /** Email all attendees of an event (Pro/Enterprise only). Returns { recipientsSent }. */
-  async emailEventAttendees(eventId: string, payload: { subject: string; body: string }): Promise<{ recipientsSent: number }> {
-    const response = await this.api.post<ApiResponse<{ recipientsSent: number }>>(
+  /** Queue an email for each attendee (Pro/Enterprise only). */
+  async emailEventAttendees(eventId: string, payload: { subject: string; body: string }): Promise<{ recipientsQueued: number }> {
+    const response = await this.api.post<ApiResponse<{ recipientsQueued: number }>>(
       `/api/v1/organizer/events/${eventId}/email-attendees`,
       payload
     );
-    const data = response.data.data as { recipientsSent?: number } | undefined;
-    return { recipientsSent: data?.recipientsSent ?? 0 };
+    const data = response.data.data as { recipientsQueued?: number } | undefined;
+    return { recipientsQueued: data?.recipientsQueued ?? 0 };
   }
 
   /** Export data (attendees, checkin, marketing, financial). Triggers file download. */
