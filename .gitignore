@@ -221,4 +221,3 @@ docs/stitch_event_details/
 !.env.lstk.example
 !.env.remote.example
 !**/terraform.lstk.tfvars
-!**/.terraform.lock.hcl

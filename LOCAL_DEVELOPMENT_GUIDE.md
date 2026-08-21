@@ -14,12 +14,15 @@ The older hybrid Docker/local-infrastructure workflow is not covered here.
 | Script | `scripts/lstk-deploy.sh` | `scripts/pipeline-deploy.sh` |
 | Make entrypoint | `make lstk-*` | `make aws-*` or `make tf-deploy-*` |
 | Terraform workspace | `lstk` | `dev`, `staging`, or `prod` |
-| Configuration | `.env.lstk` plus `.env.lstk.secrets` | `.env.remote` |
+| Configuration | `.env.lstk` | `.env.remote` |
 | AWS endpoints | LocalStack endpoints | Real AWS endpoints |
 | Email default | Capture/log provider | Resend |
-| Resend credential | Optional local emulated secret | Real AWS Secrets Manager ARN |
+| Resend credential | `RESEND_API_KEY` in ignored `.env.lstk`, copied to emulated Secrets Manager | Real AWS Secrets Manager ARN in ignored `.env.remote` |
 
 Never use `scripts/pipeline-deploy.sh` for LocalStack or `scripts/lstk-deploy.sh` for AWS. Both scripts run `terraform init -reconfigure` with their appropriate backend configuration.
+
+<details>
+<summary><strong>Complete LocalStack Pro deployment</strong></summary>
 
 ## Complete LocalStack Pro deployment
 
@@ -33,23 +36,28 @@ Never use `scripts/pipeline-deploy.sh` for LocalStack or `scripts/lstk-deploy.sh
 - Node.js/npm
 - Stripe test-mode API keys for paid checkout testing
 
-LocalStack must be able to bind ports `443`, `4566`, and `4510-4559`.
+LocalStack must be able to bind ports `443`, `4566`, and `4510-4559`. Keep `LOCALSTACK_IMAGE=localstack/localstack-pro:2026.07.5` (or a verified newer release) in `.env.lstk`; `2026.07.0` has an arm64 PostgreSQL/Python library mismatch that prevents RDS PostgreSQL 16 from starting.
 
 ### Configure LocalStack
 
-Create the non-secret configuration on the first run:
+Create the ignored LocalStack configuration on the first run:
 
 ```bash
 cp .env.lstk.example .env.lstk
 ```
 
-Keep test credentials in the ignored `.env.lstk.secrets` file:
+Add the LocalStack test credentials and Resend configuration to `.env.lstk`:
 
-```bash
+```env
 STRIPE_SECRET_KEY=sk_test_replace_me
 STRIPE_PUBLISHABLE_KEY=pk_test_replace_me
 STRIPE_WEBHOOK_SECRET=whsec_replace_me
+
+EMAIL_PROVIDER=resend
+RESEND_API_KEY=re_replace_with_a_current_resend_key
 ```
+
+`.env.lstk` is gitignored. `EMAIL_PROVIDER=resend` is required to select Resend; adding the key by itself leaves the default `log` provider active.
 
 Export the LocalStack Pro token in the shell. Do not put it in a tracked file:
 
@@ -57,12 +65,13 @@ Export the LocalStack Pro token in the shell. Do not put it in a tracked file:
 export LOCALSTACK_AUTH_TOKEN=replace_me
 ```
 
-The complete deployment uses `.env.lstk.secrets` when `LSTK_SECRET_ENV_FILE` is supplied:
+Run the simplified Make targets in this order:
 
 ```bash
-make lstk-init LSTK_SECRET_ENV_FILE=.env.lstk.secrets
-make lstk-plan LSTK_SECRET_ENV_FILE=.env.lstk.secrets
-make lstk-deploy LSTK_SECRET_ENV_FILE=.env.lstk.secrets
+make lstk-init
+make lstk-plan
+make lstk-deploy
+make lstk-verify
 ```
 
 `make lstk-init` creates missing JWT keys, starts LocalStack Pro, and bootstraps the emulated Terraform state bucket and Route53 hosted zone. `make lstk-deploy` then applies:
@@ -80,13 +89,13 @@ Images are built for `linux/amd64`, pushed to LocalStack ECR, and deployed to Lo
 
 ### LocalStack ticket email behavior
 
-The safe default is:
+To capture email locally without calling Resend, use:
 
 ```env
 EMAIL_PROVIDER=log
 ```
 
-This still exercises the complete ticket-delivery pipeline:
+The `log` provider still exercises the complete ticket-delivery pipeline:
 
 - Stripe-confirmed checkout
 - leased checkout outbox
@@ -97,13 +106,15 @@ This still exercises the complete ticket-delivery pipeline:
 - DynamoDB delivery ledger
 - captured email output without contacting Resend
 
-To perform an intentional real Resend smoke test from LocalStack Pro, export the key for one command:
+To send real ticket email through Resend from LocalStack Pro, keep these values in the ignored `.env.lstk` file and redeploy the notification Lambda:
+
+```env
+EMAIL_PROVIDER=resend
+RESEND_API_KEY=re_replace_with_a_current_resend_key
+```
 
 ```bash
-EMAIL_PROVIDER=resend \
-RESEND_API_KEY=replace_with_a_current_resend_key \
-make lstk-redeploy-lambda-notification \
-  LSTK_SECRET_ENV_FILE=.env.lstk.secrets
+make lstk-redeploy-lambda-notification
 ```
 
 The deploy script stores the key in LocalStack's emulated Secrets Manager as JSON, retrieves the emulated ARN, and supplies only that ARN to the Lambda Terraform stack. The key is not written to Terraform variables or state. This mode sends real external email through Resend; use it only when intended.
@@ -163,12 +174,12 @@ For ticket acceptance, complete authenticated, guest, and multi-ticket purchases
 After the first complete deployment, rebuild only the changed component:
 
 ```bash
-make lstk-redeploy-services LSTK_SECRET_ENV_FILE=.env.lstk.secrets
-make lstk-redeploy-frontend LSTK_SECRET_ENV_FILE=.env.lstk.secrets
-make lstk-redeploy-lambda-order LSTK_SECRET_ENV_FILE=.env.lstk.secrets
-make lstk-redeploy-lambda-payment LSTK_SECRET_ENV_FILE=.env.lstk.secrets
-make lstk-redeploy-lambda-notification LSTK_SECRET_ENV_FILE=.env.lstk.secrets
-make lstk-redeploy-lambdas LSTK_SECRET_ENV_FILE=.env.lstk.secrets
+make lstk-redeploy-services
+make lstk-redeploy-frontend
+make lstk-redeploy-lambda-order
+make lstk-redeploy-lambda-payment
+make lstk-redeploy-lambda-notification
+make lstk-redeploy-lambdas
 ```
 
 These retain unrelated LocalStack resources and data.
@@ -178,10 +189,17 @@ These retain unrelated LocalStack resources and data.
 ```bash
 make lstk-stop
 make lstk-destroy
-make lstk-redeploy LSTK_SECRET_ENV_FILE=.env.lstk.secrets
+make lstk-redeploy
 ```
 
 `make lstk-destroy` destroys Terraform-owned resources. `make lstk-redeploy` destroys, reapplies, and verifies the complete environment.
+
+</details>
+
+---
+
+<details>
+<summary><strong>Higher environment deployment from local</strong></summary>
 
 ## Higher environment deployment from local
 
@@ -248,9 +266,11 @@ Do not print the secret value.
 ### Plan and deploy everything
 
 ```bash
-make aws-plan TF_WORKSPACE=dev TF_ENV_FILE=.env.remote
-make aws-deploy TF_WORKSPACE=dev TF_ENV_FILE=.env.remote
+make aws-plan
+make aws-deploy
 ```
+
+These default to workspace `dev` and `.env.remote`. For another environment, pass `TF_WORKSPACE=staging` or `TF_WORKSPACE=prod`.
 
 Or call the deployment script directly:
 
@@ -284,20 +304,11 @@ The notification deployment fails before apply if `RESEND_API_KEY_SECRET_ARN` is
 Shared infrastructure must already exist for scoped service, frontend, or Lambda deployments.
 
 ```bash
-make tf-deploy-shared-infra \
-  TF_WORKSPACE=dev TF_ENV_FILE=.env.remote
-
-make tf-deploy-services \
-  TF_WORKSPACE=dev TF_ENV_FILE=.env.remote
-
-make tf-deploy-frontend \
-  TF_WORKSPACE=dev TF_ENV_FILE=.env.remote
-
-make tf-deploy-lambda-notification \
-  TF_WORKSPACE=dev TF_ENV_FILE=.env.remote
-
-make tf-deploy-lambdas \
-  TF_WORKSPACE=dev TF_ENV_FILE=.env.remote
+make tf-deploy-shared-infra
+make tf-deploy-services
+make tf-deploy-frontend
+make tf-deploy-lambda-notification
+make tf-deploy-lambdas
 ```
 
 Set `IMAGE_TAG` only when a specific container tag is required. Otherwise the deployment script derives one from the current Git commit.
@@ -331,5 +342,7 @@ Monitor the notification DLQ and checkout outbox alarms after rollout.
 - Store the production key only in AWS Secrets Manager.
 - Store only the production secret ARN in GitHub Actions and `.env.remote`.
 - Keep LocalStack's default email provider set to `log`.
-- Supply `RESEND_API_KEY` to LocalStack only for an intentional one-command live smoke test.
+- Keep `RESEND_API_KEY` only in the ignored `.env.lstk` file and enable it only for intentional LocalStack Resend testing.
 - Never add Resend DNS records to these Terraform stacks; `mail.abcham.com` is already verified.
+
+</details>

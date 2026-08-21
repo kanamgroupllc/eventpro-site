@@ -1,6 +1,6 @@
 services:
   localstack:
-    image: ${LOCALSTACK_IMAGE:-localstack/localstack-pro:2026.07.0}
+    image: ${LOCALSTACK_IMAGE:-localstack/localstack-pro:2026.07.5}
     container_name: eventpro-localstack-pro
     ports:
       - "443:443"
